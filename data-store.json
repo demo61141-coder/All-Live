@@ -1,0 +1,63 @@
+{
+  "buttons": [
+    {
+      "id": "watch_1",
+      "name": "Watch 1",
+      "logo": "📺",
+      "link": "https://www.wikipedia.org",
+      "network": "startapp",
+      "status": "active"
+    },
+    {
+      "id": "watch_2",
+      "name": "Watch 2",
+      "logo": "🎬",
+      "link": "https://react.dev",
+      "network": "monetag",
+      "status": "active"
+    },
+    {
+      "id": "watch_3",
+      "name": "Watch 3",
+      "logo": "🔥",
+      "link": "https://vite.dev",
+      "network": "both",
+      "status": "active"
+    },
+    {
+      "id": "watch_4",
+      "name": "Watch 4",
+      "logo": "⚡",
+      "link": "https://expressjs.com",
+      "network": "startapp",
+      "status": "active"
+    }
+  ],
+  "adConfig": {
+    "adsEnabled": true,
+    "startappAppId": "203918239",
+    "monetagZoneId": "7309121",
+    "videoDurationSeconds": 5,
+    "videoAdUrl": "https://assets.mixkit.co/videos/preview/mixkit-popcorn-falling-into-a-bowl-43407-large.mp4"
+  },
+  "notifications": [
+    {
+      "id": "welcome_notif",
+      "title": "ওয়েলকাম বোনাস অফার!",
+      "message": "নতুন আপডেট পেতে আমাদের ওয়েবসাইটগুলো মনোযোগ দিয়ে দেখুন। যেকোনো সমস্যার জন্য আমাদের সাথে যোগাযোগ করুন।",
+      "type": "success",
+      "sentAt": "2026-06-21T06:55:00Z",
+      "active": true
+    },
+    {
+      "id": "ad_info",
+      "title": "বিজ্ঞাপন সতর্কতা ⚡",
+      "message": "যেকোনো বাটনে ক্লিক করুন এবং ৫ সেকেন্ডের ভিডিও বিজ্ঞাপন সম্পূর্ণ দেখে অটোমেটিক পেজ লোড করুন।",
+      "type": "info",
+      "sentAt": "2026-06-21T06:55:00Z",
+      "active": true
+    }
+  ],
+  "googleSheetsId": "",
+  "adminCode": "1234"
+}

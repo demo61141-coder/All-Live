@@ -1,0 +1,6 @@
+{
+  "name": "All Live",
+  "description": "All Live - একটি আধুনিক ভিডিও বিজ্ঞাপন এবং ওয়েবসাইট লোডিং মোবাইল ওয়েব অ্যাপ। এখানে রয়েছে স্টার্টঅ্যাপ ও মনেট্যাগ বিজ্ঞাপন নেটওয়ার্ক ইন্টিগ্রেশন, গুগল শিট ও অ্যাডমিন প্যানেল কন্ট্রোল, এবং লাইভ নোটিফিকেশন সিস্টেম।",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

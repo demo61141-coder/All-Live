@@ -1,0 +1,45 @@
+@import "tailwindcss";
+
+@theme {
+  --animate-spin-slow: spin 10s linear infinite;
+}
+
+@layer utilities {
+  /* Disable scrollbar lines to maximize mobile space */
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-none {
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
+  }
+
+  /* Core marquee anim rules */
+  @keyframes marquee {
+    0% {
+      transform: translate3d(5%, 0, 0);
+    }
+    100% {
+      transform: translate3d(-110%, 0, 0);
+    }
+  }
+
+  .animate-marquee {
+    display: inline-block;
+    padding-left: 100%;
+    animation: marquee 25s linear infinite;
+  }
+}
+
+/* Scrollbar support for lists */
+.dark-scrollbar::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+.dark-scrollbar::-webkit-scrollbar-track {
+  background: #020617;
+}
+.dark-scrollbar::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 9999px;
+}
