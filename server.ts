@@ -151,7 +151,23 @@ app.post("/api/sync-sheet", async (req, res) => {
     }
 
     // Save synced buttons to the config database
-    config.buttons = parsedButtons;
+    // Extract any special ad network control row if present
+    const adConfigRow = parsedButtons.find(b => 
+      b.name.toLowerCase().includes("config_ads_enabled") || 
+      b.name.toLowerCase().includes("ads_enabled") || 
+      b.name.includes("বিজ্ঞাপন_অবস্থা")
+    );
+    
+    if (adConfigRow) {
+      const val = adConfigRow.link.trim().toLowerCase();
+      config.adConfig.adsEnabled = !(val === "off" || val === "false" || val === "0" || val === "বন্ধ" || val === "inactive");
+    }
+
+    config.buttons = parsedButtons.filter(b => 
+      !b.name.toLowerCase().includes("config_ads_enabled") && 
+      !b.name.toLowerCase().includes("ads_enabled") && 
+      !b.name.includes("বিজ্ঞাপন_অবস্থা")
+    );
     config.googleSheetsId = googleSheetsId;
     
     fs.writeFileSync(dataPath, JSON.stringify(config, null, 2), "utf8");

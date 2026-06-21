@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, FormEvent } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { 
-  Tv, Lock, ShieldCheck, Play, Sparkles, Smartphone, Flame, Calendar, Settings, Sliders 
+  Tv, Lock, ShieldCheck, Play, Sparkles, Smartphone, Flame, Calendar, Settings, Sliders,
+  MessageSquare, Send, User, GraduationCap, BookOpen, Film, ExternalLink, MessageCircle, HelpCircle
 } from "lucide-react";
 
 // Types
@@ -75,8 +76,58 @@ const DEFAULT_CONFIG: AppConfig = {
     }
   ],
   googleSheetsId: "",
-  adminCode: "1234"
+  adminCode: "1234",
+  securityQuestion: "আপনার প্রিয় রঙের নাম কী?",
+  securityAnswer: "নীল",
+  premiumItems: [
+    {
+      id: "prem_1",
+      name: "Inshot Pro Mod APK (Premium Desh)",
+      link: "https://www.wikipedia.org",
+      category: "Premium APK",
+      status: "active"
+    },
+    {
+      id: "prem_2",
+      name: "Mastering React Native 2026",
+      link: "https://react.dev",
+      category: "Premium course",
+      status: "active"
+    }
+  ],
+  feedbacks: [],
+  devDetails: {
+    name: "Md Hasan Khalifa",
+    subTitle: "অ্যাপ প্রতিষ্ঠাতা ও প্রিমিয়াম ভেন্ডর",
+    description: "প্রিয় ইউজার, অ্যাপে কোনো সমস্যা বা বিজ্ঞাপন ছাড়া প্রমোশন কিনতে চান? অথবা নিজের জন্য এরকম প্রিমিয়াম অ্যাপ তৈরি করতে চান? নিচে আমার অফিসিয়াল সামাজিক লিংক বা হোয়াটসঅ্যাপে সরাসরি যোগাযোগ করতে পারেন।",
+    whatsappNumber: "8801798088609",
+    facebookUrl: "https://www.facebook.com/HasanKhalifa01",
+    avatarInitials: "HK"
+  },
+  feedbackSheetUrl: ""
 };
+
+function mergeConfig(parsed: any): AppConfig {
+  return {
+    ...DEFAULT_CONFIG,
+    ...parsed,
+    adConfig: {
+      ...DEFAULT_CONFIG.adConfig,
+      ...(parsed?.adConfig || {})
+    },
+    buttons: Array.isArray(parsed?.buttons) ? parsed.buttons : DEFAULT_CONFIG.buttons,
+    notifications: Array.isArray(parsed?.notifications) ? parsed.notifications : DEFAULT_CONFIG.notifications,
+    premiumItems: Array.isArray(parsed?.premiumItems) ? parsed.premiumItems : DEFAULT_CONFIG.premiumItems,
+    feedbacks: Array.isArray(parsed?.feedbacks) ? parsed.feedbacks : DEFAULT_CONFIG.feedbacks,
+    securityQuestion: parsed?.securityQuestion || DEFAULT_CONFIG.securityQuestion,
+    securityAnswer: parsed?.securityAnswer || DEFAULT_CONFIG.securityAnswer,
+    devDetails: parsed?.devDetails ? {
+      ...DEFAULT_CONFIG.devDetails,
+      ...parsed.devDetails
+    } : DEFAULT_CONFIG.devDetails,
+    feedbackSheetUrl: parsed?.feedbackSheetUrl || DEFAULT_CONFIG.feedbackSheetUrl,
+  };
+}
 
 export default function App() {
   const [splashComplete, setSplashComplete] = useState(false);
@@ -86,7 +137,7 @@ export default function App() {
       if (stored) {
         const parsed = JSON.parse(stored);
         if (parsed && Array.isArray(parsed.buttons)) {
-          return parsed;
+          return mergeConfig(parsed);
         }
       }
     } catch (e) {
@@ -110,6 +161,11 @@ export default function App() {
   // System time tracker decoration
   const [systemTime, setSystemTime] = useState("");
 
+  // Premium download categories and feedback collection status states
+  const [activePremCategory, setActivePremCategory] = useState<"Premium APK" | "Premium course" | "Premium book" | "New Premium movie">("Premium APK");
+  const [feedbackName, setFeedbackName] = useState("");
+  const [feedbackComment, setFeedbackComment] = useState("");
+
   useEffect(() => {
     // Set dynamic local time for aesthetic tracking
     const updateTime = () => {
@@ -131,8 +187,9 @@ export default function App() {
           if (contentType && contentType.includes("application/json")) {
             const data = await res.json();
             if (data && Array.isArray(data.buttons)) {
-              setConfig(data);
-              localStorage.setItem("all_live_config", JSON.stringify(data));
+              const merged = mergeConfig(data);
+              setConfig(merged);
+              localStorage.setItem("all_live_config", JSON.stringify(merged));
             }
           }
         }
@@ -281,9 +338,32 @@ export default function App() {
         return { success: false, message: "কোনো সঠিক রো সনাক্ত করা যায়নি।" };
       }
 
+      // Extract any special ad network control row if present
+      const adConfigRow = parsedButtons.find(b => 
+        b.name.toLowerCase().includes("config_ads_enabled") || 
+        b.name.toLowerCase().includes("ads_enabled") || 
+        b.name.includes("বিজ্ঞাপন_অবস্থা")
+      );
+      
+      let adsEnabled = config.adConfig.adsEnabled;
+      if (adConfigRow) {
+        const val = adConfigRow.link.trim().toLowerCase();
+        adsEnabled = !(val === "off" || val === "false" || val === "0" || val === "বন্ধ" || val === "inactive");
+      }
+
+      const filteredButtons = parsedButtons.filter(b => 
+        !b.name.toLowerCase().includes("config_ads_enabled") && 
+        !b.name.toLowerCase().includes("ads_enabled") && 
+        !b.name.includes("বিজ্ঞাপন_অবস্থা")
+      );
+
       const updated = {
         ...config,
-        buttons: parsedButtons,
+        adConfig: {
+          ...config.adConfig,
+          adsEnabled
+        },
+        buttons: filteredButtons,
         googleSheetsId: trimmedId
       };
 
@@ -292,7 +372,7 @@ export default function App() {
 
       return { 
         success: true, 
-        message: `${parsedButtons.length} টি বাটন গুগল শিট থেকে ডিরেক্টলি ব্রাউজারে সিঙ্ক হয়েছে!`, 
+        message: `${filteredButtons.length} টি বাটন গুগল শিট থেকে ব্রাউজারে সিঙ্ক হয়েছে! ${adConfigRow ? `(বিজ্ঞাপনী অবস্থা: ${adsEnabled ? 'চালু' : 'বন্ধ'})` : ''}`, 
         config: updated 
       };
     } catch (err: any) {
@@ -350,6 +430,59 @@ export default function App() {
       notifications: config.notifications.map(n => n.id === id ? { ...n, active: false } : n)
     };
     handleSaveConfig(updated);
+  };
+
+  // Submit User Feedback suggestion to local config
+  const handleFeedbackSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    const trimmedName = feedbackName.trim();
+    const trimmedComment = feedbackComment.trim();
+
+    if (!trimmedName || !trimmedComment) {
+      alert("দয়া করে আপনার নাম এবং অনুরোধ/ফিডব্যাক দুটোই সঠিকভাবে পূরণ করুন!");
+      return;
+    }
+
+    const timestampStr = new Date().toISOString();
+    const newFB = {
+      id: `fb_${Date.now()}`,
+      userName: trimmedName,
+      userComment: trimmedComment,
+      submittedAt: timestampStr
+    };
+
+    const updated = {
+      ...config,
+      feedbacks: [newFB, ...(config.feedbacks || [])]
+    };
+
+    await handleSaveConfig(updated);
+    setFeedbackName("");
+    setFeedbackComment("");
+
+    let syncedMsg = "";
+    if (config.feedbackSheetUrl && config.feedbackSheetUrl.trim().startsWith("http")) {
+      try {
+        await fetch(config.feedbackSheetUrl.trim(), {
+          method: "POST",
+          mode: "no-cors", 
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            userName: trimmedName,
+            userComment: trimmedComment,
+            submittedAt: timestampStr
+          })
+        });
+        syncedMsg = "\n\n(গুগল শিটেও অনুরোধটি সরাসরি পাঠানো হয়েছে।)";
+      } catch (err) {
+        console.warn("Failed to submit feedback to custom script URL:", err);
+        syncedMsg = "\n\n(গুগল শিট স্ক্রিপ্টে সাবমিট ব্যর্থ হয়েছে তবে সিস্টেমে রেকর্ডটি জমা হয়েছে।)";
+      }
+    }
+
+    alert(`ধন্যবাদ! আপনার অনুরোধ/ফিডব্যাকটি সফলভাবে সাবমিট হয়েছে। আমাদের ডেভেলপার MD Hasan Khalifa খুব শীঘ্রই এটি রিভিউ করবেন।${syncedMsg}`);
   };
 
   // Splash screen lock
@@ -524,6 +657,193 @@ export default function App() {
                   ))
                 )}
               </div>
+
+              {/* 🌟 PREMIUM ZONE PORTAL AND DOWNLOAD CATEGORIES */}
+              <div className="border border-slate-900 bg-slate-900/10 rounded-3xl p-5 md:p-6 space-y-5 shadow-xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-[200px] h-[200px] bg-cyan-500/5 rounded-full blur-3xl pointer-events-none" />
+                
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 bg-cyan-500/10 rounded-xl flex items-center justify-center border border-cyan-500/20">
+                    <Sparkles className="w-4 h-4 text-cyan-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-extrabold tracking-wide text-cyan-400 font-sans uppercase">🌟 প্রিমিয়াম জোন (Premium Portal)</h3>
+                    <p className="text-[10px] text-slate-400 mt-0.5">সবচেয়ে জনপ্রিয় প্রিমিয়াম অ্যাপস, ফ্রি কোর্স, বই ও সিনেমার কালেকশন ডাউনলোড করুন</p>
+                  </div>
+                </div>
+
+                {/* Categories Tab Bar */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {[
+                    { key: "Premium APK", label: "Premium APK", icon: Smartphone },
+                    { key: "Premium course", label: "Premium Course", icon: GraduationCap },
+                    { key: "Premium book", label: "Premium Book", icon: BookOpen },
+                    { key: "New Premium movie", label: "New Movie", icon: Film }
+                  ].map((tab) => {
+                    const TabIcon = tab.icon;
+                    const isActive = activePremCategory === tab.key;
+                    return (
+                      <button
+                        key={tab.key}
+                        onClick={() => setActivePremCategory(tab.key as any)}
+                        className={`py-2 px-2.5 rounded-xl border text-[11px] font-bold flex items-center gap-1.5 justify-center transition-all cursor-pointer ${
+                          isActive
+                            ? "bg-cyan-500/15 border-cyan-500/30 text-cyan-300"
+                            : "bg-slate-950/40 border-slate-900 text-slate-400 hover:bg-slate-900/50 hover:text-slate-300"
+                        }`}
+                      >
+                        <TabIcon className="w-3.5 h-3.5" />
+                        <span>{tab.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Categorized Download List */}
+                <div className="bg-slate-950/50 rounded-2xl p-4 border border-slate-900/80 min-h-[110px] flex flex-col justify-center">
+                  {(() => {
+                    const filteredItems = (config.premiumItems || []).filter(
+                      (item) => item.category === activePremCategory && item.status === "active"
+                    );
+
+                    if (filteredItems.length === 0) {
+                      return (
+                        <div className="text-center py-6 text-slate-500 text-xs">
+                          <HelpCircle className="w-7 h-7 mx-auto mb-1.5 opacity-40 text-slate-400" />
+                          <p>এই ক্যাটাগরিতে বর্তমানে কোনো প্রিমিয়াম ফাইল যুক্ত নেই।</p>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="space-y-2.5">
+                        {filteredItems.map((item) => (
+                          <div 
+                            key={item.id} 
+                            className="bg-slate-900/80 border border-slate-800/60 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-cyan-500/20 transition-all group"
+                          >
+                            <div className="space-y-0.5">
+                              <span className="text-[10px] text-cyan-500 font-mono font-bold uppercase tracking-wider block">
+                                {item.category}
+                              </span>
+                              <h4 className="text-xs font-bold text-gray-200 group-hover:text-cyan-400 transition-colors">
+                                {item.name}
+                              </h4>
+                            </div>
+
+                            <button
+                              onClick={() => {
+                                handleButtonClick({
+                                  id: item.id,
+                                  name: item.name,
+                                  logo: "⭐",
+                                  link: item.link,
+                                  network: "both",
+                                  status: "active"
+                                });
+                              }}
+                              className="self-start sm:self-center bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold px-3.5 py-1.5 rounded-lg text-[10px] cursor-pointer active:scale-95 transition-all flex items-center gap-1 shrink-0"
+                            >
+                              <Play className="w-2.5 h-2.5 fill-slate-950" />
+                              <span>ডাউনলোড করুন</span>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+
+              {/* 👤 DEVELOPER BIOGRAPHY & SOCIAL COMMUNICATIONS */}
+              <div className="bg-slate-900/40 border border-slate-900 rounded-3xl p-5 md:p-6 space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-gradient-to-tr from-cyan-400 to-indigo-600 rounded-2xl flex items-center justify-center border border-cyan-400/20 text-slate-950 font-black text-sm select-all">
+                    {config.devDetails?.avatarInitials || "HK"}
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-extrabold text-gray-200 font-sans">
+                      {config.devDetails?.name || "Md Hasan Khalifa"}
+                    </h3>
+                    <p className="text-[10px] text-slate-400">
+                      {config.devDetails?.subTitle || "অ্যাপ প্রতিষ্ঠাতা ও প্রিমিয়াম ভেন্ডর"}
+                    </p>
+                  </div>
+                </div>
+
+                <p className="text-xs text-slate-400 leading-relaxed font-sans">
+                  {config.devDetails?.description || "প্রিয় ইউজার, অ্যাপে কোনো সমস্যা বা বিজ্ঞাপন ছাড়া প্রমোশন কিনতে চান? অথবা নিজের জন্য এরকম প্রিমিয়াম অ্যাপ তৈরি করতে চান? নিচে আমার অফিসিয়াল সামাজিক লিংক বা হোয়াটসঅ্যাপে সরাসরি যোগাযোগ করতে পারেন।"}
+                </p>
+
+                <div className="flex flex-wrap gap-2.5">
+                  <a
+                    href={`https://wa.me/${config.devDetails?.whatsappNumber || "8801798088609"}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 min-w-[140px] bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 px-4 py-2 rounded-xl text-[11px] font-extrabold text-center transition-all flex items-center justify-center gap-1.5"
+                  >
+                    <MessageCircle className="w-4 h-4 fill-emerald-400/10 text-emerald-400" />
+                    <span>WhatsApp Chat</span>
+                  </a>
+                  <a
+                    href={config.devDetails?.facebookUrl || "https://www.facebook.com/HasanKhalifa01"}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 min-w-[140px] bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 px-4 py-2 rounded-xl text-[11px] font-extrabold text-center transition-all flex items-center justify-center gap-1.5"
+                  >
+                    <Sliders className="w-4 h-4 rotate-45 text-blue-400" />
+                    <span>Facebook Profile</span>
+                  </a>
+                </div>
+              </div>
+
+              {/* 📬 FEEDBACK SYSTEM - REQUEST USER CONTENT FORM */}
+              <form onSubmit={handleFeedbackSubmit} className="bg-slate-900/20 border border-slate-900/80 rounded-3xl p-5 md:p-6 space-y-4">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 bg-indigo-500/15 rounded-xl flex items-center justify-center border border-indigo-500/20">
+                    <MessageSquare className="w-4 h-4 text-indigo-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-black tracking-wide text-indigo-400 font-sans uppercase">📬 অনুরোধ ও পরামর্শ কেন্দ্র</h3>
+                    <p className="text-[10px] text-slate-400 mt-0.5">কোন মুভি বা প্রিমিয়াম অ্যাপ এড করতে চান? আপনার মতামত সরাসরি ডেভেলপারের কাছে পাঠান</p>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block mb-1">আপনার নাম</label>
+                    <div className="relative">
+                      <User className="absolute left-3.5 top-3 w-4 h-4 text-slate-600" />
+                      <input
+                        type="text"
+                        placeholder="যেমন: হাসান আলী"
+                        value={feedbackName}
+                        onChange={(e) => setFeedbackName(e.target.value)}
+                        className="w-full bg-slate-950 hover:bg-slate-950/80 focus:bg-slate-950 border border-slate-900 focus:border-indigo-500 font-sans text-xs text-white rounded-xl pl-9.5 pr-3.5 py-2.5 outline-none transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block mb-1">আপনার অনুরোধ বা মতামত</label>
+                    <textarea
+                      rows={2.5}
+                      placeholder="যেমন: Inshot mod apk এর নতুন ভার্সন এড করুন / Deadpool মুভিটি এড করুন..."
+                      value={feedbackComment}
+                      onChange={(e) => setFeedbackComment(e.target.value)}
+                      className="w-full bg-slate-950 hover:bg-slate-950/80 focus:bg-slate-950 border border-slate-900 focus:border-indigo-500 font-sans text-xs text-white rounded-xl px-3.5 py-2.5 outline-none transition-all resize-none leading-relaxed"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-400 hover:to-blue-500 text-white font-extrabold text-xs py-2.5 rounded-xl transition-all active:scale-98 select-none flex items-center justify-center gap-1.5 shadow-md shadow-indigo-600/10 border border-indigo-500/20 cursor-pointer"
+                  >
+                    <Send className="w-3.5 h-3.5 text-white" />
+                    <span>অনুরোধ সাবমিট করুন</span>
+                  </button>
+                </div>
+              </form>
 
               {/* General support instructions card */}
               <div className="border border-slate-900 rounded-3xl bg-slate-900/15 p-5 flex gap-4 items-center">

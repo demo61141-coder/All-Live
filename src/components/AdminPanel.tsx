@@ -3,9 +3,9 @@ import {
   motion 
 } from "motion/react";
 import { 
-  Lock, Settings, Plus, Trash2, Sheet, Bell, Save, LogOut, Check, HelpCircle, RefreshCw, Eye, EyeOff, AlertCircle, X
+  Lock, Settings, Plus, Trash2, Sheet, Bell, Save, LogOut, Check, HelpCircle, RefreshCw, Eye, EyeOff, AlertCircle, X, Sparkles, MessageSquare, User
 } from "lucide-react";
-import { AppConfig, AppButton, NotificationItem } from "../types";
+import { AppConfig, AppButton, NotificationItem, PremiumItem } from "../types";
 
 interface AdminPanelProps {
   config: AppConfig;
@@ -19,12 +19,18 @@ export default function AdminPanel({ config, onSaveConfig, onSyncGoogleSheet }: 
   const [loginError, setLoginError] = useState("");
   
   // Dashboard navigation sub-tabs
-  const [activeTab, setActiveTab] = useState<"buttons" | "sheets" | "ads" | "notif">("buttons");
+  const [activeTab, setActiveTab] = useState<"buttons" | "sheets" | "ads" | "notif" | "premium" | "feedbacks">("buttons");
 
   // Form states
   const [localConfig, setLocalConfig] = useState<AppConfig>({ ...config });
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "success" | "error">("idle");
   const [saveMessage, setSaveMessage] = useState("");
+
+  // Forgot Password / PIN Recovery states
+  const [showRecForm, setShowRecForm] = useState(false);
+  const [recAnswer, setRecAnswer] = useState("");
+  const [recError, setRecError] = useState("");
+  const [newFwdPin, setNewFwdPin] = useState("");
 
   // Sync state
   const [sheetIdInput, setSheetIdInput] = useState(config.googleSheetsId || "");
@@ -50,6 +56,23 @@ export default function AdminPanel({ config, onSaveConfig, onSyncGoogleSheet }: 
   // Change Pin state
   const [newPinCode, setNewPinCode] = useState("");
 
+  // Developer Profile states
+  const [devName, setDevName] = useState(config.devDetails?.name || "Md Hasan Khalifa");
+  const [devSubTitle, setDevSubTitle] = useState(config.devDetails?.subTitle || "অ্যাপ প্রতিষ্ঠাতা ও প্রিমিয়াম ভেন্ডর");
+  const [devDescription, setDevDescription] = useState(config.devDetails?.description || "");
+  const [devWhatsapp, setDevWhatsapp] = useState(config.devDetails?.whatsappNumber || "8801798088609");
+  const [devFacebook, setDevFacebook] = useState(config.devDetails?.facebookUrl || "https://www.facebook.com/HasanKhalifa01");
+  const [devAvatarInitials, setDevAvatarInitials] = useState(config.devDetails?.avatarInitials || "HK");
+
+  // Feedback Sheets Automation Script URL
+  const [feedbackSheetUrlInput, setFeedbackSheetUrlInput] = useState(config.feedbackSheetUrl || "");
+
+  // Add Premium Item state
+  const [newPremName, setNewPremName] = useState("");
+  const [newPremCategory, setNewPremCategory] = useState<"apk" | "course" | "book" | "movie">("apk");
+  const [newPremUrl, setNewPremUrl] = useState("");
+  const [newPremBtnText, setNewPremBtnText] = useState("");
+
   // Verify PIN
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,6 +88,13 @@ export default function AdminPanel({ config, onSaveConfig, onSyncGoogleSheet }: 
   const refreshLocalState = () => {
     setLocalConfig({ ...config });
     setSheetIdInput(config.googleSheetsId || "");
+    setDevName(config.devDetails?.name || "Md Hasan Khalifa");
+    setDevSubTitle(config.devDetails?.subTitle || "অ্যাপ প্রতিষ্ঠাতা ও প্রিমিয়াম ভেন্ডর");
+    setDevDescription(config.devDetails?.description || "");
+    setDevWhatsapp(config.devDetails?.whatsappNumber || "8801798088609");
+    setDevFacebook(config.devDetails?.facebookUrl || "https://www.facebook.com/HasanKhalifa01");
+    setDevAvatarInitials(config.devDetails?.avatarInitials || "HK");
+    setFeedbackSheetUrlInput(config.feedbackSheetUrl || "");
   };
 
   // Trigger global save
@@ -219,6 +249,92 @@ export default function AdminPanel({ config, onSaveConfig, onSyncGoogleSheet }: 
     handleSaveToDatabase(updatedConfig);
   };
 
+  // Add premium library content item
+  const handleAddPremiumItem = () => {
+    if (!newPremName.trim() || !newPremUrl.trim()) {
+      alert("প্রিমিয়াম আইটেমের টাইটেল এবং ডাউনলোড লিংক দিতে হবে!");
+      return;
+    }
+
+    let url = newPremUrl.trim();
+    if (!url.startsWith("http://") && !url.startsWith("https://")) {
+      url = "https://" + url;
+    }
+
+    let mappedCategory: "Premium APK" | "Premium course" | "Premium book" | "New Premium movie";
+    if (newPremCategory === "apk") {
+      mappedCategory = "Premium APK";
+    } else if (newPremCategory === "course") {
+      mappedCategory = "Premium course";
+    } else if (newPremCategory === "book") {
+      mappedCategory = "Premium book";
+    } else {
+      mappedCategory = "New Premium movie";
+    }
+
+    const createdItem: PremiumItem = {
+      id: `prem_${Date.now()}`,
+      name: newPremName.trim(),
+      category: mappedCategory,
+      link: url,
+      status: "active"
+    };
+
+    const currentItems = localConfig.premiumItems || [];
+    const updatedConfig = {
+      ...localConfig,
+      premiumItems: [...currentItems, createdItem]
+    };
+
+    setLocalConfig(updatedConfig);
+    setNewPremName("");
+    setNewPremUrl("");
+    setNewPremBtnText("");
+    handleSaveToDatabase(updatedConfig);
+  };
+
+  // Delete premium library content item
+  const handleDeletePremiumItem = (id: string) => {
+    if (!confirm("আপনি কি নিশ্চিতভাবে এই প্রিমিয়াম আইটেমটি ডিলিট করতে চান?")) return;
+    const currentItems = localConfig.premiumItems || [];
+    const updatedConfig = {
+      ...localConfig,
+      premiumItems: currentItems.filter(item => item.id !== id)
+    };
+    setLocalConfig(updatedConfig);
+    handleSaveToDatabase(updatedConfig);
+  };
+
+  // Delete user suggestion record
+  const handleDeleteFeedback = (id: string) => {
+    if (!confirm("আপনি কি নিশ্চিতভাবে এই অনুরোধ / ফিডব্যাক বিবরণটি মুছে দিতে চান?")) return;
+    const currentFeedbacks = localConfig.feedbacks || [];
+    const updatedConfig = {
+      ...localConfig,
+      feedbacks: currentFeedbacks.filter(f => f.id !== id)
+    };
+    setLocalConfig(updatedConfig);
+    handleSaveToDatabase(updatedConfig);
+  };
+
+  // Save Developer Details and Automations Webhook
+  const handleSaveDeveloperAndSheetDetails = () => {
+    const updatedConfig: AppConfig = {
+      ...localConfig,
+      devDetails: {
+        name: devName.trim(),
+        subTitle: devSubTitle.trim(),
+        description: devDescription.trim(),
+        whatsappNumber: devWhatsapp.trim(),
+        facebookUrl: devFacebook.trim(),
+        avatarInitials: devAvatarInitials.trim() || "HK"
+      },
+      feedbackSheetUrl: feedbackSheetUrlInput.trim()
+    };
+    setLocalConfig(updatedConfig);
+    handleSaveToDatabase(updatedConfig);
+  };
+
   // Global settings changes
   const handleUpdateAdSettings = (field: string, value: any) => {
     const updatedConfig = {
@@ -249,69 +365,169 @@ export default function AdminPanel({ config, onSaveConfig, onSyncGoogleSheet }: 
   };
 
   if (!isUnlocked) {
-    const handleResetPin = () => {
-      const confirmReset = window.confirm("আপনি কি অ্যাডমিন পিন কোডটি রিসেট করে ডিফল্ট '1234' সেট করতে চান?");
-      if (confirmReset) {
+    const handleRecoverPinWithQuestion = (e: React.FormEvent) => {
+      e.preventDefault();
+      const ansInput = recAnswer.trim();
+      const questionAns = (config.securityAnswer || "নীল").trim();
+      const fwdPin = newFwdPin.trim();
+
+      if (!ansInput || !fwdPin) {
+        setRecError("অনুগ্রহ করে প্রশ্নের সঠিক উত্তর এবং নতুন পিন কোড দুটোই দিন!");
+        return;
+      }
+
+      if (fwdPin.length < 4) {
+        setRecError("নতুন পিন কোড অবশ্যই নূন্যতম ৪ সংখ্যার হতে হবে!");
+        return;
+      }
+
+      if (ansInput.toLowerCase() === questionAns.toLowerCase()) {
         const resetConfig = {
           ...localConfig,
-          adminCode: "1234"
+          adminCode: fwdPin
         };
         setLocalConfig(resetConfig);
         onSaveConfig(resetConfig);
-        alert("পিন কোড সফলভাবে রিসেট হয়ে '1234' সেট হয়েছে!");
+        alert(`অভিনন্দন! সঠিক উত্তর দিয়েছেন। আপনার পিন কোডটি সফলভাবে আপডেট করে "${fwdPin}" করা হয়েছে। আমরা ড্যাশবোর্ডটি আনলক করে দিয়েছি।`);
+        setIsUnlocked(true);
+        setShowRecForm(false);
+        setRecAnswer("");
+        setNewFwdPin("");
+        setRecError("");
+      } else {
+        setRecError("নিরাপত্তা প্রশ্নের উত্তরটি ভুল হয়েছে! আবার চেষ্টা করুন।");
       }
     };
 
     return (
       <div id="admin-gate-stage" className="max-w-md mx-auto p-6 bg-slate-900 border border-slate-800 rounded-3xl shadow-xl mt-8">
-        <div className="text-center space-y-3 mb-6">
-          <div className="w-14 h-14 bg-cyan-950/40 border border-cyan-800 rounded-2xl flex items-center justify-center mx-auto text-cyan-400">
-            <Lock className="w-6 h-6 animate-pulse" />
-          </div>
-          <h2 className="text-xl font-bold text-gray-100 font-sans">অ্যাডমিন কন্ট্রোল গেট</h2>
-          <p className="text-xs text-slate-400 font-sans">
-            অ্যাপের বাটন নাম, লিংক, লোগো এবং বিজ্ঞাপন সেটিংস পরিবর্তন করতে অ্যাডমিন পিন কোড দিন।
-          </p>
-        </div>
-
-        <form onSubmit={handleLogin} className="space-y-4">
-          <div className="space-y-1.5">
-            <label className="text-[11px] font-mono text-slate-400 uppercase tracking-widest block">ADMIN PIN CODE</label>
-            <input
-              type="password"
-              placeholder="পিন কোড লিখুন"
-              className="w-full bg-slate-950 border border-slate-800 focus:border-cyan-500 rounded-xl px-4 py-3 text-center text-lg font-mono tracking-widest text-cyan-400 outline-none"
-              value={pinInput}
-              onChange={(e) => setPinInput(e.target.value)}
-              maxLength={8}
-              autoFocus
-            />
-          </div>
-
-          {loginError && (
-            <div className="p-3 bg-rose-950/20 border border-rose-500/20 rounded-xl flex items-center gap-2 text-xs text-rose-400 font-sans">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{loginError}</span>
+        {!showRecForm ? (
+          <>
+            <div className="text-center space-y-3 mb-6">
+              <div className="w-14 h-14 bg-cyan-950/40 border border-cyan-800 rounded-2xl flex items-center justify-center mx-auto text-cyan-400">
+                <Lock className="w-6 h-6 animate-pulse" />
+              </div>
+              <h2 className="text-xl font-bold text-gray-100 font-sans">অ্যাডমিন কন্ট্রোল গেট</h2>
+              <p className="text-xs text-slate-400 font-sans">
+                অ্যাপের বাটন নাম, লিংক, লোগো এবং বিজ্ঞাপন সেটিংস পরিবর্তন করতে অ্যাডমিন পিন কোড দিন।
+              </p>
             </div>
-          )}
 
-          <div className="space-y-2 pt-2">
-            <button
-              type="submit"
-              className="w-full bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 hover:opacity-90 active:scale-95 text-slate-950 font-bold py-3.5 rounded-xl text-xs uppercase tracking-wider shadow-lg shadow-cyan-400/10 cursor-pointer text-center"
-            >
-              আনলক ড্যাশবোর্ড
-            </button>
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-mono text-slate-400 uppercase tracking-widest block">ADMIN PIN CODE</label>
+                <input
+                  type="password"
+                  placeholder="পিন কোড লিখুন"
+                  className="w-full bg-slate-950 border border-slate-800 focus:border-cyan-500 rounded-xl px-4 py-3 text-center text-lg font-mono tracking-widest text-cyan-400 outline-none"
+                  value={pinInput}
+                  onChange={(e) => setPinInput(e.target.value)}
+                  maxLength={8}
+                  autoFocus
+                />
+              </div>
 
-            <button
-              type="button"
-              onClick={handleResetPin}
-              className="w-full bg-transparent hover:bg-slate-800/40 text-slate-400 hover:text-slate-200 border border-transparent hover:border-slate-800/80 font-medium py-2 rounded-xl text-xs cursor-pointer transition-all text-center"
-            >
-              🔑 পিন কোড রিসেট করুন (Reset to 1234)
-            </button>
-          </div>
-        </form>
+              {loginError && (
+                <div className="p-3 bg-rose-950/20 border border-rose-500/20 rounded-xl flex items-center gap-2 text-xs text-rose-400 font-sans">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{loginError}</span>
+                </div>
+              )}
+
+              <div className="space-y-2 pt-2">
+                <button
+                  type="submit"
+                  className="w-full bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 hover:opacity-90 active:scale-95 text-slate-950 font-bold py-3.5 rounded-xl text-xs uppercase tracking-wider shadow-lg shadow-cyan-400/10 cursor-pointer text-center"
+                >
+                  আনলক ড্যাশবোর্ড
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowRecForm(true)}
+                  className="w-full bg-transparent hover:bg-slate-800/40 text-slate-400 hover:text-slate-200 border border-transparent hover:border-slate-800/80 font-bold py-2.5 rounded-xl text-xs cursor-pointer transition-all text-center"
+                >
+                  🔑 পিন উদ্ধার করুন (Forgot PIN)
+                </button>
+              </div>
+            </form>
+          </>
+        ) : (
+          <>
+            <div className="text-center space-y-3 mb-6">
+              <div className="w-14 h-14 bg-indigo-950/40 border border-indigo-850 rounded-2xl flex items-center justify-center mx-auto text-indigo-400">
+                <HelpCircle className="w-6 h-6 animate-pulse" />
+              </div>
+              <h2 className="text-xl font-bold text-gray-100 font-sans">নিরাপত্তা পিন উদ্ধার</h2>
+              <p className="text-xs text-slate-400 font-sans">
+                আপনার আগে সেট করা নিরাপত্তা প্রশ্নের সঠিক উত্তর দিয়ে একটি নতুন পিন কোড সেট করুন।
+              </p>
+            </div>
+
+            <form onSubmit={handleRecoverPinWithQuestion} className="space-y-4">
+              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-center space-y-1">
+                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">নিরাপত্তা প্রশ্ন</span>
+                <p className="text-sm font-extrabold text-indigo-400 font-sans">
+                  {config.securityQuestion || "আপনার প্রিয় রঙের নাম কী?"}
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-mono text-slate-400 uppercase tracking-widest block font-bold">প্রশ্নের সঠিক উত্তর</label>
+                <input
+                  type="text"
+                  placeholder="প্রশ্নের উত্তর দিন"
+                  className="w-full bg-slate-950 border border-slate-805 focus:border-indigo-500 rounded-xl px-4 py-2.5 text-xs text-white outline-none font-sans"
+                  value={recAnswer}
+                  onChange={(e) => setRecAnswer(e.target.value)}
+                  maxLength={45}
+                  autoFocus
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-mono text-slate-400 uppercase tracking-widest block font-bold">নতুন পিন কোড সেট করুন</label>
+                <input
+                  type="text"
+                  placeholder="যেমন: ৪৩২১"
+                  className="w-full bg-slate-950 border border border-slate-800 focus:border-cyan-500 rounded-xl px-4 py-2.5 text-xs font-mono tracking-wider text-cyan-400 outline-none"
+                  value={newFwdPin}
+                  onChange={(e) => setNewFwdPin(e.target.value)}
+                  maxLength={10}
+                />
+              </div>
+
+              {recError && (
+                <div className="p-3 bg-rose-950/20 border border border-rose-500/20 rounded-xl flex items-center gap-2 text-xs text-rose-450 font-sans">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{recError}</span>
+                </div>
+              )}
+
+              <div className="space-y-2 pt-2">
+                <button
+                  type="submit"
+                  className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl text-xs uppercase tracking-wider shadow-lg shadow-indigo-600/10 cursor-pointer text-center"
+                >
+                  উত্তর জমা দিন ও পিন সেট করুন
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowRecForm(false);
+                    setRecAnswer("");
+                    setNewFwdPin("");
+                    setRecError("");
+                  }}
+                  className="w-full bg-transparent text-slate-400 hover:text-slate-200 font-bold py-2 rounded-xl text-xs cursor-pointer transition-all text-center"
+                >
+                  ফিরে যান
+                </button>
+              </div>
+            </form>
+          </>
+        )}
       </div>
     );
   }
@@ -354,54 +570,99 @@ export default function AdminPanel({ config, onSaveConfig, onSyncGoogleSheet }: 
       </div>
 
       {/* Primary Dashboard Navigation Tabs */}
-      <div className="flex items-center overflow-x-auto dark-scrollbar border-b border-slate-800/50 pb-px gap-1">
-        <button
-          onClick={() => setActiveTab("buttons")}
-          className={`flex items-center gap-2 px-4 py-3 text-xs font-bold whitespace-nowrap transition-all border-b-2 cursor-pointer ${
-            activeTab === "buttons" 
-              ? "border-cyan-400 text-cyan-400 bg-cyan-500/5" 
-              : "border-transparent text-slate-400 hover:text-slate-200"
-          }`}
-        >
-          <Plus className="w-4 h-4" />
-          <span>বাটন লিস্ট এডিটর</span>
-        </button>
+      <div className="space-y-2">
+        <div className="flex items-center justify-between px-1">
+          <span className="text-[10px] text-slate-500 font-medium font-sans">মেনু ক্যাটাগরিসমূহ:</span>
+          <div className="text-[10px] text-cyan-400 bg-cyan-950/40 border border-cyan-800/35 px-2 py-0.5 rounded-full font-bold flex items-center gap-1 animate-pulse select-none">
+            <span>ডানে-বামে স্ক্রোল করুন</span>
+            <span className="font-mono font-bold">↔</span>
+          </div>
+        </div>
+        <div className="flex items-center overflow-x-auto dark-scrollbar border-b border-slate-800 pb-2.5 gap-1.5 scroll-smooth max-w-full">
+          <button
+            onClick={() => setActiveTab("buttons")}
+            className={`flex items-center gap-2 px-4 py-3 text-xs font-bold whitespace-nowrap transition-all border-b-2 cursor-pointer shrink-0 ${
+              activeTab === "buttons" 
+                ? "border-cyan-400 text-cyan-400 bg-cyan-500/5" 
+                : "border-transparent text-slate-400 hover:text-slate-200"
+            }`}
+          >
+            <Plus className="w-4 h-4 shrink-0" />
+            <span>বাটন লিস্ট এডিটর</span>
+          </button>
 
-        <button
-          onClick={() => setActiveTab("sheets")}
-          className={`flex items-center gap-2 px-4 py-3 text-xs font-bold whitespace-nowrap transition-all border-b-2 cursor-pointer ${
-            activeTab === "sheets" 
-              ? "border-cyan-400 text-cyan-400 bg-cyan-500/5" 
-              : "border-transparent text-slate-400 hover:text-slate-200"
-          }`}
-        >
-          <Sheet className="w-4 h-4" />
-          <span>গুগল শিট সিঙ্ক</span>
-        </button>
+          <button
+            onClick={() => setActiveTab("sheets")}
+            className={`flex items-center gap-2 px-4 py-3 text-xs font-bold whitespace-nowrap transition-all border-b-2 cursor-pointer shrink-0 ${
+              activeTab === "sheets" 
+                ? "border-cyan-400 text-cyan-400 bg-cyan-500/5" 
+                : "border-transparent text-slate-400 hover:text-slate-200"
+            }`}
+          >
+            <Sheet className="w-4 h-4 shrink-0" />
+            <span>গুগল শিট সিঙ্ক</span>
+          </button>
 
-        <button
-          onClick={() => setActiveTab("ads")}
-          className={`flex items-center gap-2 px-4 py-3 text-xs font-bold whitespace-nowrap transition-all border-b-2 cursor-pointer ${
-            activeTab === "ads" 
-              ? "border-cyan-400 text-cyan-400 bg-cyan-500/5" 
-              : "border-transparent text-slate-400 hover:text-slate-200"
-          }`}
-        >
-          <Settings className="w-4 h-4" />
-          <span>বিজ্ঞাপন সেটিংস</span>
-        </button>
+          <button
+            onClick={() => setActiveTab("ads")}
+            className={`flex items-center gap-2 px-4 py-3 text-xs font-bold whitespace-nowrap transition-all border-b-2 cursor-pointer shrink-0 ${
+              activeTab === "ads" 
+                ? "border-cyan-400 text-cyan-400 bg-cyan-500/5" 
+                : "border-transparent text-slate-400 hover:text-slate-200"
+            }`}
+          >
+            <Settings className="w-4 h-4 shrink-0" />
+            <span>বিজ্ঞাপন সেটিংস</span>
+          </button>
 
-        <button
-          onClick={() => setActiveTab("notif")}
-          className={`flex items-center gap-2 px-4 py-3 text-xs font-bold whitespace-nowrap transition-all border-b-2 cursor-pointer ${
-            activeTab === "notif" 
-              ? "border-cyan-400 text-cyan-400 bg-cyan-500/5" 
-              : "border-transparent text-slate-400 hover:text-slate-200"
-          }`}
-        >
-          <Bell className="w-4 h-4" />
-          <span>নোটিফিকেশন পাঠান</span>
-        </button>
+          <button
+            onClick={() => setActiveTab("notif")}
+            className={`flex items-center gap-2 px-4 py-3 text-xs font-bold whitespace-nowrap transition-all border-b-2 cursor-pointer shrink-0 ${
+              activeTab === "notif" 
+                ? "border-cyan-400 text-cyan-400 bg-cyan-500/5" 
+                : "border-transparent text-slate-400 hover:text-slate-200"
+            }`}
+          >
+            <Bell className="w-4 h-4 shrink-0" />
+            <span>নোটিফিকেশন পাঠান</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("premium")}
+            className={`flex items-center gap-2 px-4 py-3 text-xs font-bold whitespace-nowrap transition-all border-b-2 cursor-pointer shrink-0 ${
+              activeTab === "premium" 
+                ? "border-cyan-400 text-cyan-400 bg-cyan-500/5" 
+                : "border-transparent text-slate-400 hover:text-slate-200"
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5 shrink-0" />
+            <span>প্রিমিয়াম পোর্টাল</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("feedbacks")}
+            className={`flex items-center gap-2 px-4 py-3 text-xs font-bold whitespace-nowrap transition-all border-b-2 cursor-pointer shrink-0 ${
+              activeTab === "feedbacks" 
+                ? "border-cyan-400 text-cyan-400 bg-cyan-500/5" 
+                : "border-transparent text-slate-400 hover:text-slate-200"
+            }`}
+          >
+            <MessageSquare className="w-3.5 h-3.5 shrink-0" />
+            <span>ইউজার অনুরোধ ও ফিডব্যাক ({config.feedbacks?.length || 0})</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("developer")}
+            className={`flex items-center gap-2 px-4 py-3 text-xs font-bold whitespace-nowrap transition-all border-b-2 cursor-pointer shrink-0 ${
+              activeTab === "developer" 
+                ? "border-cyan-400 text-cyan-400 bg-cyan-500/5" 
+                : "border-transparent text-slate-400 hover:text-slate-200"
+            }`}
+          >
+            <User className="w-3.5 h-3.5 shrink-0" />
+            <span>প্রোফাইল ও অটোমেশন (Developer Info)</span>
+          </button>
+        </div>
       </div>
 
       {/* Tab Content Display Area */}
@@ -726,6 +987,34 @@ export default function AdminPanel({ config, onSaveConfig, onSyncGoogleSheet }: 
                 </div>
               </div>
 
+              {/* Configuration block for custom Security Question / Answer */}
+              <div className="pt-5 border-t border-slate-800 space-y-3">
+                <span className="text-[11px] font-mono text-slate-500 uppercase tracking-widest block font-bold text-slate-300">নিরাপত্তা প্রশ্ন এবং উত্তর সেটিংস</span>
+                <p className="text-[10px] text-slate-500">পিন রিকভারির জন্য একটি প্রশ্ন এবং গোপন উত্তর লিখে অল লাইভ সেটিংস সেভ করে রাখুন।</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div className="space-y-1">
+                    <label className="text-[9px] text-slate-400 font-bold uppercase block tracking-wider">প্রশ্ন বিবরণ ( Bengali / English )</label>
+                    <input
+                      type="text"
+                      className="w-full bg-slate-900 border border-slate-804 focus:border-cyan-500 text-white rounded-xl px-3.5 py-2.5 text-xs outline-none"
+                      value={localConfig.securityQuestion || ""}
+                      onChange={(e) => setLocalConfig({ ...localConfig, securityQuestion: e.target.value })}
+                      placeholder="যেমন: আপনার প্রিয় রঙের নাম কী?"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] text-slate-400 font-bold uppercase block tracking-wider">গোপন সঠিক উত্তর</label>
+                    <input
+                      type="text"
+                      className="w-full bg-slate-900 border border-slate-804 focus:border-cyan-500 text-white rounded-xl px-3.5 py-2.5 text-xs outline-none"
+                      value={localConfig.securityAnswer || ""}
+                      onChange={(e) => setLocalConfig({ ...localConfig, securityAnswer: e.target.value })}
+                      placeholder="যেমন: নীল"
+                    />
+                  </div>
+                </div>
+              </div>
+
               {/* Global Save Button */}
               <div className="pt-4 border-t border-slate-800/80 flex items-center justify-between gap-4">
                 <p className="text-[11px] text-slate-400 font-sans">
@@ -837,6 +1126,320 @@ export default function AdminPanel({ config, onSaveConfig, onSyncGoogleSheet }: 
                     </div>
                   ))
                 )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 5: Premium Downloads Portal */}
+        {activeTab === "premium" && (
+          <div className="space-y-6">
+            <div className="bg-slate-950 p-5 rounded-2xl border border-slate-800 space-y-4 animate-fadeIn">
+              <h3 className="text-sm font-bold text-gray-200 border-b border-slate-800/60 pb-3 flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-amber-400" />
+                <span>প্রিমিয়াম লাইব্রেরিতে নতুন আপলোড যুক্ত করুন</span>
+              </h3>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-slate-500 uppercase font-mono">আইটেমের নাম/টাইটেল</label>
+                  <input
+                    type="text"
+                    placeholder="যেমন: Kinemaster Pro APK 2026"
+                    className="w-full bg-slate-900 border border-slate-800 focus:border-cyan-500 text-white rounded-xl px-3.5 py-2.5 text-xs outline-none"
+                    value={newPremName}
+                    onChange={(e) => setNewPremName(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-slate-500 uppercase font-mono">ডাউনলোড বা অ্যাক্সেস লিঙ্ক</label>
+                  <input
+                    type="text"
+                    placeholder="যেমন: https://drive.google.com/..."
+                    className="w-full bg-slate-900 border border-slate-800 focus:border-cyan-500 text-white rounded-xl px-3.5 py-2.5 text-xs font-mono outline-none"
+                    value={newPremUrl}
+                    onChange={(e) => setNewPremUrl(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-slate-500 uppercase font-mono">ক্যাটাগরি নির্ধারণ করুন</label>
+                  <select
+                    className="w-full bg-slate-900 border border-slate-800 focus:border-cyan-500 text-white rounded-xl px-3 py-2.5 text-xs outline-none"
+                    value={newPremCategory}
+                    onChange={(e) => setNewPremCategory(e.target.value as any)}
+                  >
+                    <option value="apk">Premium APK (অ্যাপস)</option>
+                    <option value="course">Premium course (কোর্স)</option>
+                    <option value="book">Premium book (বই/PDF)</option>
+                    <option value="movie">New Premium movie (মুভি)</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-slate-500 uppercase font-mono">বাটন টেক্সট (ঐচ্ছিক)</label>
+                  <input
+                    type="text"
+                    placeholder="যেমন: Download Now / Watch Full Movie"
+                    className="w-full bg-slate-900 border border-slate-800 focus:border-cyan-500 text-white rounded-xl px-3.5 py-2.5 text-xs outline-none"
+                    value={newPremBtnText}
+                    onChange={(e) => setNewPremBtnText(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <button
+                onClick={handleAddPremiumItem}
+                className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:opacity-95 text-slate-950 font-bold py-3.5 rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-lg mt-2"
+              >
+                <Plus className="w-4 h-4 text-slate-950" />
+                <span>প্রিমিয়াম আইটেম যুক্ত করুন (Add to Premium Section)</span>
+              </button>
+            </div>
+
+            {/* List existing premium files */}
+            <div className="space-y-3">
+              <h3 className="text-xs font-bold text-gray-300 uppercase tracking-wider">বর্তমানে আপলোড করা প্রিমিয়াম তালিকা</h3>
+              <div className="border border-slate-800 rounded-2xl overflow-hidden bg-slate-950 divide-y divide-slate-800/80">
+                {(!localConfig.premiumItems || localConfig.premiumItems.length === 0) ? (
+                  <p className="p-8 text-center text-xs text-slate-500">প্রিমিয়াম জোনে এখনও কোনো ফাইল বা কোর্স রাখা হয়নি।</p>
+                ) : (
+                  localConfig.premiumItems.map((item) => (
+                    <div key={item.id} className="p-4 bg-slate-950 hover:bg-slate-900/10 flex items-center justify-between gap-4 transition-all">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="text-xs font-bold text-gray-150">{item.name}</h4>
+                          <span className="text-[9px] px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 font-bold uppercase tracking-wider">
+                            {item.category}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-400 font-mono select-all truncate max-w-md">{item.link}</p>
+                      </div>
+
+                      <button
+                        onClick={() => handleDeletePremiumItem(item.id)}
+                        className="p-2 bg-slate-905 hover:bg-rose-950/20 text-slate-400 hover:text-rose-400 border border-slate-800 hover:border-rose-900/35 rounded-xl cursor-pointer transition-all"
+                        title="প্রিমিয়াম ফাইলটি মুছে ফেলুন"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 6: Feedbacks and Requests Panel */}
+        {activeTab === "feedbacks" && (
+          <div className="space-y-6">
+            <div className="bg-slate-950 p-5 rounded-2xl border border-slate-800 space-y-3">
+              <h3 className="text-sm font-bold text-gray-200 border-b border-slate-800/60 pb-3 flex items-center gap-2 animate-fadeIn">
+                <MessageSquare className="w-5 h-5 text-cyan-400" />
+                <span>ইউজারদের অনুরোধ, মতামত ও ফিডব্যাকসমূহ ({config.feedbacks?.length || 0})</span>
+              </h3>
+              <p className="text-xs text-slate-400 font-sans leading-relaxed">
+                মোবাইল ওয়েব অ্যাপ থেকে সরাসরি ব্যবহারকারীরা MD Hasan Khalifa-র নিকট যেসকল মতামত, সমস্যা বা নতুন বাটন/বিজ্ঞাপন চালুর অনুরোধ জমা দিয়েছেন, তার তালিকা নিচে দেওয়া হলো।
+              </p>
+            </div>
+
+            <div className="space-y-3.5">
+              {(!localConfig.feedbacks || localConfig.feedbacks.length === 0) ? (
+                <div className="bg-slate-950 border border-slate-800 rounded-2xl p-10 text-center text-xs text-slate-500">
+                  এখনও কোনো মতামত বা অনুরোধ জমা পড়েনি।
+                </div>
+              ) : (
+                localConfig.feedbacks.map((fb) => (
+                  <div key={fb.id} className="bg-slate-950/90 border border-slate-800 rounded-2xl p-4 space-y-3 hover:border-slate-700/50 transition-all">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-full bg-cyan-950/40 text-cyan-400 flex items-center justify-center font-bold text-xs uppercase font-sans border border-cyan-900/30">
+                          {fb.userName ? fb.userName.charAt(0) : "U"}
+                        </div>
+                        <div>
+                          <span className="text-xs font-bold text-gray-200 font-sans">{fb.userName || "অজ্ঞাত ব্যবহারকারী"}</span>
+                          <span className="text-[9px] text-slate-500 font-mono tracking-wider block">
+                            {fb.submittedAt ? new Date(fb.submittedAt).toLocaleString("bn-BD") : "অজানা সময়"}
+                          </span>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => handleDeleteFeedback(fb.id)}
+                        className="p-2 bg-slate-905 hover:bg-rose-950/20 text-slate-400 hover:text-rose-400 border border-slate-800 hover:border-rose-900/35 rounded-xl cursor-pointer transition-all"
+                        title="মতামতটি মুছে ফেলুন"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800/40">
+                      <p className="text-xs text-slate-300 font-sans whitespace-pre-wrap leading-relaxed">
+                        {fb.userComment}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 7: Developer Settings & Sheet automation */}
+        {activeTab === "developer" && (
+          <div className="space-y-6">
+            <div className="bg-slate-950 p-5 rounded-2xl border border-slate-800 space-y-4">
+              <h3 className="text-sm font-bold text-gray-200 border-b border-slate-800/60 pb-3 flex items-center gap-2">
+                <User className="w-5 h-5 text-cyan-400" />
+                <span>ডেভেলপার প্রোফাইল সেটিংস</span>
+              </h3>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-slate-500 uppercase font-mono">নাম (Developer Name)</label>
+                  <input
+                    type="text"
+                    className="w-full bg-slate-900 border border-slate-800 focus:border-cyan-500 text-white rounded-xl px-3.5 py-2.5 text-xs outline-none"
+                    value={devName}
+                    onChange={(e) => setDevName(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-slate-500 uppercase font-mono">পদবি/ছোট বিবরণ (Subtitle)</label>
+                  <input
+                    type="text"
+                    className="w-full bg-slate-900 border border-slate-800 focus:border-cyan-500 text-white rounded-xl px-3.5 py-2.5 text-xs outline-none"
+                    value={devSubTitle}
+                    onChange={(e) => setDevSubTitle(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-slate-500 uppercase font-mono">হোয়াটসঅ্যাপ নাম্বার (WhatsApp Number)</label>
+                  <input
+                    type="text"
+                    placeholder="যেমন: 8801798088609"
+                    className="w-full bg-slate-900 border border-slate-800 focus:border-cyan-500 text-white rounded-xl px-3.5 py-2.5 text-xs font-mono outline-none"
+                    value={devWhatsapp}
+                    onChange={(e) => setDevWhatsapp(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-slate-500 uppercase font-mono">ফেসবুক প্রোফাইল লিঙ্ক (Facebook Profile URL)</label>
+                  <input
+                    type="text"
+                    placeholder="যেমন: https://facebook.com/..."
+                    className="w-full bg-slate-900 border border-slate-800 focus:border-cyan-500 text-white rounded-xl px-3.5 py-2.5 text-xs font-mono outline-none"
+                    value={devFacebook}
+                    onChange={(e) => setDevFacebook(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-slate-500 uppercase font-mono">অ্যাভাটার শর্ট কোড / আদ্যক্ষর (Initials)</label>
+                  <input
+                    type="text"
+                    maxLength={3}
+                    placeholder="যেমন: HK"
+                    className="w-full bg-slate-900 border border-slate-800 focus:border-cyan-500 text-white rounded-xl px-3.5 py-2.5 text-xs uppercase outline-none font-sans"
+                    value={devAvatarInitials}
+                    onChange={(e) => setDevAvatarInitials(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] text-slate-500 uppercase font-mono">আমার বিবরণী / সংক্ষিপ্ত পরিচিতি (Biography Text)</label>
+                <textarea
+                  rows={3}
+                  className="w-full bg-slate-900 border border-slate-800 focus:border-cyan-500 text-white rounded-xl px-3.5 py-2.5 text-xs outline-none font-sans leading-relaxed"
+                  value={devDescription}
+                  onChange={(e) => setDevDescription(e.target.value)}
+                />
+              </div>
+
+              <div className="pt-2">
+                <button
+                  onClick={handleSaveDeveloperAndSheetDetails}
+                  className="w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold py-3.5 rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-lg transition-all"
+                >
+                  <Save className="w-4 h-4 text-slate-950" />
+                  <span>ডেভেলপার প্রোফাইল সংরক্ষণ করুন (Save Developer Info)</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Google Sheets Feedback Webhook Setup block */}
+            <div className="bg-slate-950 p-5 rounded-2xl border border-slate-800 space-y-4">
+              <h3 className="text-sm font-bold text-gray-200 border-b border-slate-800/60 pb-3 flex items-center gap-2">
+                <Sheet className="w-5 h-5 text-emerald-400" />
+                <span>মতামত ও অনুরোধ সরাসরি গুগল শিটে জমার সেটিংস (Direct Sheet Integration)</span>
+              </h3>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] text-slate-500 uppercase font-mono">গুগল স্ক্রিপ্ট ওয়েব অ্যাপ ইউআরএল (Google Web App URL)</label>
+                <input
+                  type="text"
+                  placeholder="https://script.google.com/macros/s/xxxx/exec"
+                  className="w-full bg-slate-900 border border-slate-800 focus:border-cyan-500 text-white rounded-xl px-3.5 py-2.5 text-xs font-mono outline-none"
+                  value={feedbackSheetUrlInput}
+                  onChange={(e) => setFeedbackSheetUrlInput(e.target.value)}
+                />
+                <p className="text-[10px] text-slate-500 leading-relaxed font-sans mt-1">
+                  এখানে গুগোল স্ক্রিপ্ট ওয়েব অ্যাপ ইউআরএল সেট করলে ইউজাররা "অনুরোধ ও পরামর্শ কেন্দ্র" থেকে সাবমিট করার সাথে সাথে তা অটোমেটিক আপনার গুগল স্প্রেডশিটে যুক্ত হবে।
+                </p>
+              </div>
+
+              <div className="pt-2">
+                <button
+                  onClick={handleSaveDeveloperAndSheetDetails}
+                  className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold py-3.5 rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-lg transition-all"
+                >
+                  <Save className="w-4 h-4 text-slate-950" />
+                  <span>ওয়েবহুক ইউআরএল সংরক্ষণ করুন (Save Webhook URL)</span>
+                </button>
+              </div>
+
+              {/* Step by step manual setup code provider */}
+              <div className="bg-slate-900 border border-slate-800/60 rounded-2xl p-4 space-y-3">
+                <h4 className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+                  <span>💡 এটি কিভাবে সেটাপ করবেন? (How to Setup Web App Tutorial)</span>
+                </h4>
+                <ol className="text-[11px] text-slate-400 list-decimal pl-4 space-y-2 leading-relaxed">
+                  <li>আপনার পছন্দের যেকোনো <b>Google Spreadsheet</b> ওপেন করুন।</li>
+                  <li>শিটের প্রথম লাইনে কলাম হেডার হিসেবে লিখুন: কলাম A-তে <code>Name</code>, কলাম B-তে <code>Comment</code>, এবং কলাম C-তে <code>Timestamp</code>।</li>
+                  <li>স্প্রেডশিটের উপর মেনু থেকে <b>Extensions &gt; Apps Script</b> এ ক্লিক করুন।</li>
+                  <li>সেখানে থাকা সব কোড মুছে নিচের স্ক্রিপ্টটি কপি করে পেস্ট করুন:</li>
+                </ol>
+
+                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800/80 overflow-x-auto text-[10px] font-mono text-cyan-400 leading-normal max-h-[180px] dark-scrollbar select-all">
+                  <pre>{`function doPost(e) {
+  try {
+    var data = JSON.parse(e.postData.contents);
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+    sheet.appendRow([
+      data.userName,
+      data.userComment,
+      new Date().toLocaleString("en-US", { timeZone: "Asia/Dhaka" })
+    ]);
+    return ContentService.createTextOutput("Success").setMimeType(ContentService.MimeType.TEXT);
+  } catch(err) {
+    return ContentService.createTextOutput("Error: " + err.message).setMimeType(ContentService.MimeType.TEXT);
+  }
+}`}</pre>
+                </div>
+
+                <ol className="text-[11px] text-slate-400 list-decimal pl-4 space-y-2 leading-relaxed" start={5}>
+                  <li>স্ক্রিপ্টটি রি-নেম করে সেভ করুন। এরপর ডানদিকের উপরের <b>Deploy &gt; New deployment</b> বাটনে ক্লিক করুন।</li>
+                  <li>Select type থেকে <b>Web app</b> সিলেক্ট করুন।</li>
+                  <li><b>Execute as:</b> এ <code>Me (your-email)</code> রাখুন এবং <b>Who has access:</b> এ অবশ্যই <code>Anyone</code> সিলেক্ট করুন।</li>
+                  <li><b>Deploy</b> এ প্রেস করুন, গুগল পারমিশন চাইলে Access মঞ্জুর করুন।</li>
+                  <li>ডিপ্লয় সম্পূর্ণ হলে যে <b>Web app URL</b> টি পাবেন, তা কপি করে এনে উপরের ইনপুট বক্সে জমা দিন এবং সেভ করুন!</li>
+                </ol>
               </div>
             </div>
           </div>

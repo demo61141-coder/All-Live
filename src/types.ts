@@ -24,10 +24,40 @@ export interface NotificationItem {
   active: boolean;
 }
 
+export interface PremiumItem {
+  id: string;
+  name: string;
+  link: string;
+  category: "Premium APK" | "Premium course" | "Premium book" | "New Premium movie";
+  status: "active" | "inactive";
+}
+
+export interface UserFeedback {
+  id: string;
+  userName: string;
+  userComment: string;
+  submittedAt: string;
+}
+
+export interface DevDetails {
+  name: string;
+  subTitle: string;
+  description: string;
+  whatsappNumber: string;
+  facebookUrl: string;
+  avatarInitials: string;
+}
+
 export interface AppConfig {
   buttons: AppButton[];
   adConfig: AdConfig;
   notifications: NotificationItem[];
   googleSheetsId: string; // spreadsheet ID of the sync sheet
   adminCode: string; // PIN code for admin panel authentication (defaults to 1234)
+  securityQuestion: string; // Reset question, configured by admin
+  securityAnswer: string; // Reset answer, configured by admin
+  premiumItems: PremiumItem[]; // Premium items grouped by category
+  feedbacks: UserFeedback[]; // List of user comments/requests
+  devDetails?: DevDetails; // Optional developer portfolio information
+  feedbackSheetUrl?: string; // Google Apps Script/Sheets Webapp URL for direct submissions
 }

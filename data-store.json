@@ -6,7 +6,7 @@
       "logo": "📺",
       "link": "https://www.wikipedia.org",
       "network": "startapp",
-      "status": "active"
+      "status": "inactive"
     },
     {
       "id": "watch_2",
@@ -14,7 +14,7 @@
       "logo": "🎬",
       "link": "https://react.dev",
       "network": "monetag",
-      "status": "active"
+      "status": "inactive"
     },
     {
       "id": "watch_3",
@@ -55,9 +55,30 @@
       "message": "যেকোনো বাটনে ক্লিক করুন এবং ৫ সেকেন্ডের ভিডিও বিজ্ঞাপন সম্পূর্ণ দেখে অটোমেটিক পেজ লোড করুন।",
       "type": "info",
       "sentAt": "2026-06-21T06:55:00Z",
-      "active": true
+      "active": false
     }
   ],
   "googleSheetsId": "",
-  "adminCode": "1234"
+  "adminCode": "2545",
+  "securityQuestion": "আপনার প্রিয় রঙের নাম কী?",
+  "securityAnswer": "নীল",
+  "premiumItems": [
+    {
+      "id": "prem_1",
+      "name": "Inshot Pro Premium Mod (Vercel Build)",
+      "link": "https://www.wikipedia.org",
+      "category": "Premium APK",
+      "status": "active"
+    }
+  ],
+  "feedbacks": [],
+  "devDetails": {
+    "name": "Md Hasan Khalifa",
+    "subTitle": "অ্যাপ প্রতিষ্ঠাতা ও প্রিমিয়াম ভেন্ডর",
+    "description": "প্রিয় ইউজার, অ্যাপে কোনো সমস্যা বা বিজ্ঞাপন ছাড়া প্রমোশন কিনতে চান? অথবা নিজের জন্য এরকম প্রিমিয়াম অ্যাপ তৈরি করতে চান? নিচে আমার অফিসিয়াল সামাজিক লিংক বা হোয়াটসঅ্যাপে সরাসরি যোগাযোগ করতে পারেন।",
+    "whatsappNumber": "8801798088609",
+    "facebookUrl": "https://www.facebook.com/HasanKhalifa01",
+    "avatarInitials": "HK"
+  },
+  "feedbackSheetUrl": ""
 }

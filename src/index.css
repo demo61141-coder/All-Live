@@ -31,15 +31,22 @@
   }
 }
 
-/* Scrollbar support for lists */
+/* Scrollbar support for lists and horizontal navigations */
 .dark-scrollbar::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 7px;
+  height: 7px;
 }
 .dark-scrollbar::-webkit-scrollbar-track {
-  background: #020617;
+  background: rgba(15, 23, 42, 0.85);
+  border-radius: 9999px;
+  border: 1px solid rgba(51, 65, 85, 0.3);
 }
 .dark-scrollbar::-webkit-scrollbar-thumb {
-  background: #1e293b;
+  background: #06b6d4; /* Vivid Cyan color for clear scrolling visibility */
   border-radius: 9999px;
+  box-shadow: 0 0 4px rgba(6, 182, 212, 0.5);
+}
+.dark-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #22d3ee;
+  box-shadow: 0 0 8px rgba(34, 211, 238, 0.8);
 }
