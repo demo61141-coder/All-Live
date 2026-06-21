@@ -14,9 +14,86 @@ import InAppBrowser from "./components/InAppBrowser";
 import NotificationCenter from "./components/NotificationCenter";
 import AdminPanel from "./components/AdminPanel";
 
+const DEFAULT_CONFIG: AppConfig = {
+  buttons: [
+    {
+      id: "watch_1",
+      name: "Watch 1",
+      logo: "📺",
+      link: "https://www.wikipedia.org",
+      network: "startapp",
+      status: "active"
+    },
+    {
+      id: "watch_2",
+      name: "Watch 2",
+      logo: "🎬",
+      link: "https://react.dev",
+      network: "monetag",
+      status: "active"
+    },
+    {
+      id: "watch_3",
+      name: "Watch 3",
+      logo: "🔥",
+      link: "https://vite.dev",
+      network: "both",
+      status: "active"
+    },
+    {
+      id: "watch_4",
+      name: "Watch 4",
+      logo: "⚡",
+      link: "https://expressjs.com",
+      network: "startapp",
+      status: "active"
+    }
+  ],
+  adConfig: {
+    adsEnabled: true,
+    startappAppId: "203918239",
+    monetagZoneId: "7309121",
+    videoDurationSeconds: 5,
+    videoAdUrl: "https://assets.mixkit.co/videos/preview/mixkit-popcorn-falling-into-a-bowl-43407-large.mp4"
+  },
+  notifications: [
+    {
+      id: "welcome_notif",
+      title: "ওয়েলকাম বোনাস অফার!",
+      message: "নতুন আপডেট পেতে আমাদের ওয়েবসাইটগুলো মনোযোগ দিয়ে দেখুন। যেকোনো সমস্যার জন্য আমাদের সাথে যোগাযোগ করুন।",
+      type: "success",
+      sentAt: "2026-06-21T06:55:00Z",
+      active: true
+    },
+    {
+      id: "ad_info",
+      title: "বিজ্ঞাপন সতর্কতা ⚡",
+      message: "যেকোনো বাটনে ক্লিক করুন এবং ৫ সেকেন্ডের ভিডিও বিজ্ঞাপন সম্পূর্ণ দেখে অটোমেটিক পেজ লোড করুন।",
+      type: "info",
+      sentAt: "2026-06-21T06:55:00Z",
+      active: true
+    }
+  ],
+  googleSheetsId: "",
+  adminCode: "1234"
+};
+
 export default function App() {
   const [splashComplete, setSplashComplete] = useState(false);
-  const [config, setConfig] = useState<AppConfig | null>(null);
+  const [config, setConfig] = useState<AppConfig>(() => {
+    try {
+      const stored = localStorage.getItem("all_live_config");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed && Array.isArray(parsed.buttons)) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to retrieve config from local storage", e);
+    }
+    return DEFAULT_CONFIG;
+  });
   const [loadingConfig, setLoadingConfig] = useState(true);
 
   // Layout navigation states
@@ -44,17 +121,23 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  // Fetch configs from express DB server
+  // Fetch configs from express DB server with silent failovers
   useEffect(() => {
     const fetchConfig = async () => {
       try {
         const res = await fetch("/api/config");
         if (res.ok) {
-          const data = await res.json();
-          setConfig(data);
+          const contentType = res.headers.get("content-type");
+          if (contentType && contentType.includes("application/json")) {
+            const data = await res.json();
+            if (data && Array.isArray(data.buttons)) {
+              setConfig(data);
+              localStorage.setItem("all_live_config", JSON.stringify(data));
+            }
+          }
         }
       } catch (err) {
-        console.error("Express backend load failed. Playing on static fallback.", err);
+        console.warn("Express backend offline or unreachable. Using offline standalone storage.", err);
       } finally {
         setLoadingConfig(false);
       }
@@ -62,8 +145,11 @@ export default function App() {
     fetchConfig();
   }, []);
 
-  // Sync settings with the backend
+  // Sync settings with backend or local storage
   const handleSaveConfig = async (updated: AppConfig): Promise<boolean> => {
+    setConfig(updated);
+    localStorage.setItem("all_live_config", JSON.stringify(updated));
+
     try {
       const res = await fetch("/api/config", {
         method: "POST",
@@ -71,39 +157,151 @@ export default function App() {
         body: JSON.stringify(updated)
       });
       if (res.ok) {
-        setConfig(updated);
         return true;
       }
-      return false;
+      console.warn("Backend save failed. Operating on standalone storage.");
+      return true;
     } catch (e) {
-      console.error(e);
-      return false;
+      console.warn("Server unavailable, config saved to client storage.", e);
+      return true;
     }
   };
 
-  // Trigger Google Sheet fetch on server
+  // Trigger Google Sheet fetch on server, falling back to direct client-side fetch on Vercel
   const handleSyncGoogleSheet = async (sheetsId: string) => {
+    // 1. Try server-side action first (if online)
     try {
       const res = await fetch("/api/sync-sheet", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ googleSheetsId: sheetsId })
       });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setConfig(data.config);
-        return { success: true, message: data.message, config: data.config };
+      if (res.ok) {
+        const contentType = res.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          const data = await res.json();
+          if (data.success && data.config) {
+            setConfig(data.config);
+            localStorage.setItem("all_live_config", JSON.stringify(data.config));
+            return { success: true, message: data.message, config: data.config };
+          }
+        }
       }
-      return { success: false, message: data.error || "সিঙ্ক করতে ব্যর্থ হয়েছে।" };
-    } catch (e: any) {
-      return { success: false, message: e.message || "সার্ভার রেসপন্স সিঙ্ক ব্যর্থ" };
+    } catch (e) {
+      console.warn("Server sync failed, falling back to direct client sync...", e);
+    }
+
+    // 2. Direct client-side CSV spreadsheet fetch (Cross-origin safe with Google Sheet exports!)
+    try {
+      const trimmedId = sheetsId.trim();
+      const csvUrl = `https://docs.google.com/spreadsheets/d/${trimmedId}/gviz/tq?tqx=out:csv`;
+      
+      const response = await fetch(csvUrl);
+      if (!response.ok) {
+        return { 
+          success: false, 
+          message: "গুগল শিট অ্যাক্সেস করা যায়নি। দয়া করে স্প্রেডশিটে General Access এ 'Anyone with the link can view' সেট করুন।" 
+        };
+      }
+
+      const text = await response.text();
+      const lines = text.split(/\r?\n/).filter(line => line.trim().length > 0);
+      if (lines.length < 2) {
+        return { success: false, message: "গুগল শিটে কোনো বাটন রো খুঁজে পাওয়া যায়নি।" };
+      }
+
+      // Safe CSV Line parser
+      const parseCSVLine = (line: string): string[] => {
+        const result: string[] = [];
+        let current = "";
+        let inQuotes = false;
+        for (let i = 0; i < line.length; i++) {
+          const char = line[i];
+          if (char === '"') {
+            inQuotes = !inQuotes;
+          } else if (char === "," && !inQuotes) {
+            result.push(current.trim());
+            current = "";
+          } else {
+            current += char;
+          }
+        }
+        result.push(current.trim());
+        return result.map(val => val.replace(/^"(.*)"$/, "$1"));
+      };
+
+      const headers = parseCSVLine(lines[0]).map(h => h.trim().toLowerCase());
+      const nameIndex = headers.indexOf("name");
+      const logoIndex = headers.indexOf("logo");
+      const linkIndex = headers.indexOf("link");
+      const idIndex = headers.indexOf("id");
+      const networkIndex = headers.indexOf("network");
+      const statusIndex = headers.indexOf("status");
+
+      if (nameIndex === -1 || linkIndex === -1) {
+        return { 
+          success: false, 
+          message: "হেডার কলাম অনুপস্থিত! শিটে অবশ্যই 'Name' এবং 'Link' হেডার কলাম থাকতে হবে।" 
+        };
+      }
+
+      const parsedButtons: AppButton[] = [];
+      for (let i = 1; i < lines.length; i++) {
+        const cols = parseCSVLine(lines[i]);
+        if (cols.length < Math.max(nameIndex, linkIndex) + 1) continue;
+
+        const name = cols[nameIndex];
+        const link = cols[linkIndex];
+        if (!name || !link) continue;
+
+        const id = idIndex !== -1 && cols[idIndex] ? cols[idIndex] : `sync_btn_${Date.now()}_${i}`;
+        const logo = logoIndex !== -1 && cols[logoIndex] ? cols[logoIndex] : "🔗";
+        
+        let networkValue = networkIndex !== -1 && cols[networkIndex] ? cols[networkIndex].toLowerCase() : "startapp";
+        if (!["startapp", "monetag", "both"].includes(networkValue)) {
+          networkValue = "startapp";
+        }
+
+        let statusValue = statusIndex !== -1 && cols[statusIndex] ? cols[statusIndex].toLowerCase() : "active";
+        if (!["active", "inactive"].includes(statusValue)) {
+          statusValue = "active";
+        }
+
+        parsedButtons.push({
+          id,
+          name,
+          logo,
+          link,
+          network: networkValue as any,
+          status: statusValue as any
+        });
+      }
+
+      if (parsedButtons.length === 0) {
+        return { success: false, message: "কোনো সঠিক রো সনাক্ত করা যায়নি।" };
+      }
+
+      const updated = {
+        ...config,
+        buttons: parsedButtons,
+        googleSheetsId: trimmedId
+      };
+
+      setConfig(updated);
+      localStorage.setItem("all_live_config", JSON.stringify(updated));
+
+      return { 
+        success: true, 
+        message: `${parsedButtons.length} টি বাটন গুগল শিট থেকে ডিরেক্টলি ব্রাউজারে সিঙ্ক হয়েছে!`, 
+        config: updated 
+      };
+    } catch (err: any) {
+      return { success: false, message: `সিঙ্কিং ব্যর্থ: ${err.message}` };
     }
   };
 
   // Button clicks: Checks if ads are enabled and plays interstitial, then launches browser
   const handleButtonClick = (btn: AppButton) => {
-    if (!config) return;
-
     const navigateToSite = () => {
       setActiveBrowserUrl(btn.link);
       setActiveBrowserTitle(btn.name);
@@ -126,8 +324,6 @@ export default function App() {
 
   // Back button event interceptor: Shows advertisement before returning to dashboard portal
   const handleBrowserExit = () => {
-    if (!config) return;
-
     const exitToDashboard = () => {
       setActiveBrowserUrl(null);
       setActiveBrowserTitle("");
@@ -149,7 +345,6 @@ export default function App() {
   };
 
   const handleDismissNotification = (id: string) => {
-    if (!config) return;
     const updated = {
       ...config,
       notifications: config.notifications.map(n => n.id === id ? { ...n, active: false } : n)
@@ -162,8 +357,8 @@ export default function App() {
     return <SplashLogo onComplete={() => setSplashComplete(true)} />;
   }
 
-  // Fallback state waiting for DB load
-  if (loadingConfig || !config) {
+  // Fallback state in case configuration is somehow completely corrupted
+  if (!config) {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-center gap-4">
         <div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin" />
