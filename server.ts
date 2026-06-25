@@ -393,38 +393,25 @@ function parseCSVLine(line: string): string[] {
   return result.map(val => val.replace(/^"(.*)"$/, "$1")); // Strip surrounding quotes
 }
 
-// API route: Sync with Google Sheets
-app.post("/api/sync-sheet", async (req, res) => {
+// Reusable Google Sheets Sync Helper (Robust, updates config dynamically)
+async function syncFromGoogleSheets(googleSheetsId: string, dataPath: string, config: AppConfig): Promise<{ success: boolean; error?: string; buttons?: AppButton[] }> {
   try {
-    const auth = checkAdminAuth(req);
-    if (!auth.success) {
-      return res.status(401).json({ error: auth.error });
-    }
-
-    const { googleSheetsId } = req.body;
-    if (!googleSheetsId) {
-      return res.status(400).json({ error: "Google Spreadsheet ID is required" });
-    }
-
-    // Load existing config to update
-    const dataPath = path.join(__dirname, "data-store.json");
-    const rawData = fs.readFileSync(dataPath, "utf8");
-    const config: AppConfig = JSON.parse(rawData);
-
-    // Fetch public CSV export of spreadsheet
     const csvUrl = `https://docs.google.com/spreadsheets/d/${googleSheetsId}/gviz/tq?tqx=out:csv`;
-    console.log(`Syncing from Google sheet CSV: ${csvUrl}`);
+    console.log(`[GoogleSheetsSync] Syncing from CSV URL: ${csvUrl}`);
     
     const response = await fetch(csvUrl);
     if (!response.ok) {
-      return res.status(400).json({ error: "Could not fetch Google Sheet. Please check Spreadsheet ID and verify the sheet is shared as: 'Anyone with the link can view'" });
+      return { 
+        success: false, 
+        error: "Google Sheet টি ডাউনলোড করা যায়নি। অনুগ্রহ করে স্প্রেডশীট আইডি চেক করুন এবং ফাইলটি 'Anyone with the link can view' করা আছে কিনা নিশ্চিত হোন।" 
+      };
     }
 
     const text = await response.text();
     const lines = text.split(/\r?\n/).filter(line => line.trim().length > 0);
     
     if (lines.length < 2) {
-      return res.status(400).json({ error: "Google Sheet is empty or columns are corrupted" });
+      return { success: false, error: "গুগল শিটটি খালি অথবা কলামগুলো সঠিক নয়।" };
     }
 
     // Read column headers (case-insensitive)
@@ -440,9 +427,10 @@ app.post("/api/sync-sheet", async (req, res) => {
     const statusIndex = headers.indexOf("status");
 
     if (nameIndex === -1 || linkIndex === -1) {
-      return res.status(400).json({ 
-        error: "Required columns missing! The Google Sheet must include 'Name' and 'Link' header columns. Optional: 'Logo', 'ID', 'Network', 'Status'" 
-      });
+      return { 
+        success: false, 
+        error: "প্রয়োজনীয় কলাম পাওয়া যায়নি! গুগল শিটে অবশ্যই 'Name' এবং 'Link' কলাম হেডার থাকতে হবে। ঐচ্ছিক কলাম: 'Logo', 'ID', 'Network', 'Status'" 
+      };
     }
 
     const parsedButtons: AppButton[] = [];
@@ -479,11 +467,10 @@ app.post("/api/sync-sheet", async (req, res) => {
     }
 
     if (parsedButtons.length === 0) {
-      return res.status(400).json({ error: "No valid rows detected. Make sure 'Name' and 'Link' have non-empty values on each row." });
+      return { success: false, error: "কোনো সঠিক রো (Row) পাওয়া যায়নি। প্রতিটি রো-তে Name এবং Link অবশ্যই দিন।" };
     }
 
     // Save synced buttons to the config database
-    // Extract any special ad network control row if present
     const adConfigRow = parsedButtons.find(b => 
       b.name.toLowerCase().includes("config_ads_enabled") || 
       b.name.toLowerCase().includes("ads_enabled") || 
@@ -503,13 +490,41 @@ app.post("/api/sync-sheet", async (req, res) => {
     config.googleSheetsId = googleSheetsId;
     
     fs.writeFileSync(dataPath, JSON.stringify(config, null, 2), "utf8");
+    return { success: true, buttons: parsedButtons };
+  } catch (err: any) {
+    return { success: false, error: err.message || "শীট সিঙ্ক করার সময় সার্ভার এরর হয়েছে।" };
+  }
+}
 
-    res.json({ 
-      success: true, 
-      message: `${parsedButtons.length} buttons parsed and synced successfully!`, 
-      buttons: parsedButtons,
-      config
-    });
+// API route: Sync with Google Sheets
+app.post("/api/sync-sheet", async (req, res) => {
+  try {
+    const auth = checkAdminAuth(req);
+    if (!auth.success) {
+      return res.status(401).json({ error: auth.error });
+    }
+
+    const { googleSheetsId } = req.body;
+    if (!googleSheetsId) {
+      return res.status(400).json({ error: "Google Spreadsheet ID is required" });
+    }
+
+    // Load existing config to update
+    const dataPath = path.join(__dirname, "data-store.json");
+    const rawData = fs.readFileSync(dataPath, "utf8");
+    const config: AppConfig = JSON.parse(rawData);
+
+    const result = await syncFromGoogleSheets(googleSheetsId, dataPath, config);
+    if (result.success) {
+      res.json({ 
+        success: true, 
+        message: `${result.buttons?.length}টি বাটন গুগল শিট থেকে সফলভাবে সিঙ্ক হয়েছে!`, 
+        buttons: result.buttons,
+        config
+      });
+    } else {
+      res.status(400).json({ error: result.error });
+    }
   } catch (err: any) {
     res.status(500).json({ error: err.message || "Failed during sheet database fetch" });
   }
@@ -573,6 +588,30 @@ app.get("/api/proxy", async (req, res) => {
 
 // Configure Vite middleware in development or express static paths in production 
 async function start() {
+  // Try to perform automatic background Google Sheets synchronization on startup if configured
+  try {
+    const dataPath = path.join(__dirname, "data-store.json");
+    if (fs.existsSync(dataPath)) {
+      const rawData = fs.readFileSync(dataPath, "utf8");
+      const config: AppConfig = JSON.parse(rawData);
+      const activeSheetId = process.env.GOOGLE_SHEETS_ID || config.googleSheetsId;
+      
+      if (activeSheetId) {
+        console.log(`[StartupSync] Found active Google Sheet ID: "${activeSheetId}". Performing automatic background sync...`);
+        const result = await syncFromGoogleSheets(activeSheetId, dataPath, config);
+        if (result.success) {
+          console.log(`[StartupSync] Successful! Synchronized ${result.buttons?.length} buttons on startup.`);
+        } else {
+          console.error(`[StartupSync] Sync failed: ${result.error}`);
+        }
+      } else {
+        console.log(`[StartupSync] No Google Sheets ID configured. Skipping startup sync.`);
+      }
+    }
+  } catch (err: any) {
+    console.error("[StartupSync] Error while performing automatic startup sync:", err.message);
+  }
+
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
