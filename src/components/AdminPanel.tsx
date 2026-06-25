@@ -88,6 +88,64 @@ export default function AdminPanel({ config, onSaveConfig, onSyncGoogleSheet, on
   const [securityQInput, setSecurityQInput] = useState(config.securityQuestion || "আপনার প্রিয় রঙের নাম কী?");
   const [securityAInput, setSecurityAInput] = useState(config.securityAnswer || "নীল");
 
+  // Edit Button State
+  const [editingButton, setEditingButton] = useState<AppButton | null>(null);
+
+  // Edit Button Save Handler
+  const handleSaveEditedButton = () => {
+    if (!editingButton) return;
+    if (!editingButton.name || !editingButton.link) {
+      alert("বাটনের নাম এবং ওয়েবসাইট লিংক অবশ্যই দিতে হবে!");
+      return;
+    }
+
+    let url = editingButton.link.trim();
+    if (!url.startsWith("http://") && !url.startsWith("https://")) {
+      url = "https://" + url;
+    }
+
+    const updatedBtn = {
+      ...editingButton,
+      link: url
+    };
+
+    const updatedConfig = {
+      ...localConfig,
+      buttons: localConfig.buttons.map(b => b.id === updatedBtn.id ? updatedBtn : b)
+    };
+
+    setLocalConfig(updatedConfig);
+    setEditingButton(null);
+    handleSaveToDatabase(updatedConfig);
+  };
+
+  // Delete User session from analytics list handler
+  const handleDeleteUser = async (userId: string) => {
+    if (!confirm("আপনি কি নিশ্চিতভাবে এই ইউজারটিকে তালিকা থেকে ডিলিট করতে চান?")) return;
+    try {
+      const response = await fetch("/api/admin/users/delete", {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "x-admin-pin": pinInput1.trim(),
+          "x-admin-pin-secondary": pinInput2.trim()
+        },
+        body: JSON.stringify({ userId })
+      });
+
+      if (response.ok) {
+        setLocalConfig(prev => ({
+          ...prev,
+          users: (prev.users || []).filter(u => u.id !== userId)
+        }));
+      } else {
+        alert("ইউজার ডিলিট করা সম্ভব হয়নি।");
+      }
+    } catch (err: any) {
+      alert(`ডিলিট করতে ত্রুটি: ${err.message}`);
+    }
+  };
+
   // Verify PIN sequence
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -909,6 +967,18 @@ export default function AdminPanel({ config, onSaveConfig, onSyncGoogleSheet, on
             <Lock className="w-3.5 h-3.5 shrink-0 text-yellow-400" />
             <span>পাসওয়ার্ড ও সিকিউরিটি</span>
           </button>
+
+          <button
+            onClick={() => setActiveTab("users" as any)}
+            className={`flex items-center gap-2 px-4 py-3 text-xs font-bold whitespace-nowrap transition-all border-b-2 cursor-pointer shrink-0 ${
+              activeTab === "users" 
+                ? "border-cyan-400 text-cyan-400 bg-cyan-500/5" 
+                : "border-transparent text-slate-400 hover:text-slate-200"
+            }`}
+          >
+            <User className="w-3.5 h-3.5 shrink-0 text-emerald-400" />
+            <span>ইউজার অ্যানালাইসিস (Analytics) ({(localConfig.users || []).length})</span>
+          </button>
         </div>
       </div>
 
@@ -983,7 +1053,19 @@ export default function AdminPanel({ config, onSaveConfig, onSyncGoogleSheet, on
                   </select>
                 </div>
 
-                <div className="sm:col-span-2 flex items-end">
+                <div className="space-y-1">
+                  <label className="text-[10px] text-slate-500 uppercase font-mono">বিজ্ঞাপন দেখাবে?</label>
+                  <select
+                    className="w-full bg-slate-900 border border-slate-800 focus:border-cyan-500 text-white rounded-xl px-3 py-2 text-xs outline-none"
+                    value={newButton.adsEnabled !== false ? "yes" : "no"}
+                    onChange={(e) => setNewButton({ ...newButton, adsEnabled: e.target.value === "yes" })}
+                  >
+                    <option value="yes">বিজ্ঞাপন চালু (Ad ON)</option>
+                    <option value="no">বিজ্ঞাপন বন্ধ (Ad OFF)</option>
+                  </select>
+                </div>
+
+                <div className="flex items-end">
                   <button
                     onClick={handleAddButton}
                     className="w-full bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-bold h-9 rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer"
@@ -1016,6 +1098,15 @@ export default function AdminPanel({ config, onSaveConfig, onSyncGoogleSheet, on
                       </div>
 
                       <div className="flex items-center gap-2 shrink-0">
+                        {/* Ads Status Badge */}
+                        <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wide border ${
+                          btn.adsEnabled !== false 
+                            ? "bg-cyan-950/20 text-cyan-400 border-cyan-800/30" 
+                            : "bg-rose-950/20 text-rose-400 border-rose-900/30"
+                        }`}>
+                          {btn.adsEnabled !== false ? "Ad: ON" : "Ad: OFF"}
+                        </span>
+
                         {/* Network indicator badge */}
                         <span className={`text-[9px] px-2 py-0.5 rounded-full font-mono font-bold uppercase tracking-wide border ${
                           btn.network === "startapp" 
@@ -1037,6 +1128,15 @@ export default function AdminPanel({ config, onSaveConfig, onSyncGoogleSheet, on
                           }`}
                         >
                           {btn.status === "active" ? "Active" : "Disabled"}
+                        </button>
+
+                        {/* Edit button */}
+                        <button
+                          onClick={() => setEditingButton(btn)}
+                          className="p-1.5 hover:bg-cyan-950/20 text-slate-500 hover:text-cyan-400 rounded-lg cursor-pointer max-w-min"
+                          title="বাটন এডিট করুন"
+                        >
+                          <Settings className="w-3.5 h-3.5" />
                         </button>
 
                         {/* Delete button */}
@@ -2080,7 +2180,180 @@ export default function AdminPanel({ config, onSaveConfig, onSyncGoogleSheet, on
             </div>
           </div>
         )}
+
+        {/* TAB 10: User Analytics Dashboard Tab */}
+        {activeTab === ("users" as any) && (
+          <div className="space-y-6">
+            <div className="bg-slate-950 p-5 rounded-2xl border border-slate-800 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-slate-800/60 pb-4 gap-3">
+                <div className="flex items-center gap-2">
+                  <User className="w-5 h-5 text-emerald-400" />
+                  <h3 className="text-sm font-bold text-gray-200">ইউজার অ্যানালাইসিস ও ভিজিটর ট্র্যাক (User Analytics)</h3>
+                </div>
+                <div className="text-xs bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-xl text-slate-400">
+                  মোট রেজিস্টার্ড ইউজার: <span className="text-cyan-400 font-bold font-mono">{(localConfig.users || []).length}</span> জন
+                </div>
+              </div>
+
+              <div className="border border-slate-800/80 rounded-2xl overflow-hidden bg-slate-950 divide-y divide-slate-800/80">
+                {(!localConfig.users || localConfig.users.length === 0) ? (
+                  <p className="p-12 text-center text-xs text-slate-500">কোনো ইউজার ডাটা পাওয়া যায়নি। ইউজাররা অ্যাপে প্রবেশ করলে অটোমেটিকলি এখানে যুক্ত হবে।</p>
+                ) : (
+                  [...(localConfig.users || [])]
+                    .sort((a, b) => new Date(b.lastActive).getTime() - new Date(a.lastActive).getTime())
+                    .map((user) => (
+                      <div key={user.id} className="p-4 hover:bg-slate-900/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all">
+                        <div className="space-y-1.5 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-xs font-bold text-gray-200 font-mono">{user.username}</span>
+                            <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-emerald-950/40 text-emerald-400 border border-emerald-900/30 font-mono">
+                              ID: {user.id}
+                            </span>
+                            <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-cyan-950/40 text-cyan-400 border border-cyan-900/30 font-mono">
+                              {user.visitCount} বার প্রবেশ করেছে
+                            </span>
+                          </div>
+                          
+                          <div className="flex flex-col gap-1 text-[10px] text-slate-400">
+                            <p className="flex items-center gap-1">
+                              <span className="text-slate-500 uppercase font-mono text-[9px]">প্রথম সেশন:</span> 
+                              <span>{new Date(user.createdAt).toLocaleString("bn-BD")}</span>
+                            </p>
+                            <p className="flex items-center gap-1">
+                              <span className="text-slate-500 uppercase font-mono text-[9px]">শেষ একটিভ:</span> 
+                              <span className="text-cyan-400 font-semibold">{new Date(user.lastActive).toLocaleString("bn-BD")}</span>
+                            </p>
+                            {user.deviceInfo && (
+                              <p className="text-slate-500 font-mono text-[9px] leading-relaxed truncate max-w-lg" title={user.deviceInfo}>
+                                Device: {user.deviceInfo}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                          <button
+                            onClick={() => handleDeleteUser(user.id)}
+                            className="text-xs font-bold px-3 py-1.5 rounded-xl border border-rose-900/30 bg-rose-950/20 hover:bg-rose-950/50 text-rose-400 cursor-pointer transition-all flex items-center gap-1"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>ডিলিট করুন</span>
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* Edit Button Modal Popup overlay */}
+      {editingButton && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
+              <h3 className="text-sm font-bold text-cyan-400 uppercase tracking-wider flex items-center gap-1.5 font-sans">
+                <Settings className="w-4 h-4 text-cyan-400" />
+                বাটন সেটিংস এডিট করুন
+              </h3>
+              <button 
+                onClick={() => setEditingButton(null)}
+                className="p-1 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <label className="text-[10px] text-slate-400 uppercase font-mono font-bold">বাটনের নাম</label>
+                <input
+                  type="text"
+                  className="w-full bg-slate-950 border border-slate-800 focus:border-cyan-500 text-white rounded-xl px-3 py-2 text-xs outline-none"
+                  value={editingButton.name}
+                  onChange={(e) => setEditingButton({ ...editingButton, name: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] text-slate-400 uppercase font-mono font-bold">আইকন/ইমোজি</label>
+                <input
+                  type="text"
+                  className="w-full bg-slate-950 border border-slate-800 focus:border-cyan-500 text-white rounded-xl px-3 py-2 text-xs outline-none text-center"
+                  value={editingButton.logo}
+                  onChange={(e) => setEditingButton({ ...editingButton, logo: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] text-slate-400 uppercase font-mono font-bold">ওয়েবসাইট লিংক URL (বা লাইভ IPTV লিংক)</label>
+                <input
+                  type="text"
+                  className="w-full bg-slate-950 border border-slate-800 focus:border-cyan-500 text-white rounded-xl px-3 py-2 text-xs outline-none"
+                  value={editingButton.link}
+                  onChange={(e) => setEditingButton({ ...editingButton, link: e.target.value })}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] text-slate-400 uppercase font-mono font-bold">অ্যাড নেটওয়ার্ক</label>
+                  <select
+                    className="w-full bg-slate-950 border border-slate-800 focus:border-cyan-500 text-white rounded-xl px-3 py-2 text-xs outline-none"
+                    value={editingButton.network}
+                    onChange={(e) => setEditingButton({ ...editingButton, network: e.target.value as any })}
+                  >
+                    <option value="startapp">StartApp Only</option>
+                    <option value="monetag">Monetag Only</option>
+                    <option value="both">Both (Random)</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] text-slate-400 uppercase font-mono font-bold">অবস্থা</label>
+                  <select
+                    className="w-full bg-slate-950 border border-slate-800 focus:border-cyan-500 text-white rounded-xl px-3 py-2 text-xs outline-none"
+                    value={editingButton.status}
+                    onChange={(e) => setEditingButton({ ...editingButton, status: e.target.value as any })}
+                  >
+                    <option value="active">Active (সবুজ)</option>
+                    <option value="inactive">Inactive (বন্ধ)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] text-slate-400 uppercase font-mono font-bold">বিজ্ঞাপন দেখাবে?</label>
+                <select
+                  className="w-full bg-slate-950 border border-slate-800 focus:border-cyan-500 text-white rounded-xl px-3 py-2 text-xs outline-none"
+                  value={editingButton.adsEnabled !== false ? "yes" : "no"}
+                  onChange={(e) => setEditingButton({ ...editingButton, adsEnabled: e.target.value === "yes" })}
+                >
+                  <option value="yes">বিজ্ঞাপন চালু (Ad ON)</option>
+                  <option value="no">বিজ্ঞাপন বন্ধ (Ad OFF)</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                onClick={() => setEditingButton(null)}
+                className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold py-2 rounded-xl text-xs cursor-pointer"
+              >
+                বাতিল করুন
+              </button>
+              <button
+                onClick={handleSaveEditedButton}
+                className="flex-1 bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-bold py-2 rounded-xl text-xs cursor-pointer"
+              >
+                সংরক্ষণ করুন
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Global Toast Success banner overlay */}
       {saveStatus === "success" && (

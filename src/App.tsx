@@ -158,6 +158,52 @@ export default function App() {
   const [adFreeActive, setAdFreeActive] = useState<boolean>(() => localStorage.getItem("ad_free_active_state") === "true");
   const [adFreeUserName, setAdFreeUserName] = useState<string>(() => localStorage.getItem("ad_free_user_name") || "");
 
+  // User Analytics Profile states
+  const [analyticsUserId] = useState<string>(() => {
+    let uid = localStorage.getItem("analytics_user_id");
+    if (!uid) {
+      uid = "usr_" + Math.random().toString(36).substring(2, 11);
+      localStorage.setItem("analytics_user_id", uid);
+    }
+    return uid;
+  });
+
+  const [analyticsUsername, setAnalyticsUsername] = useState<string>(() => {
+    let name = localStorage.getItem("analytics_username");
+    if (!name) {
+      const randNum = Math.floor(1000 + Math.random() * 9000);
+      name = `ব্যবহারকারী_${randNum}`;
+      localStorage.setItem("analytics_username", name);
+    }
+    return name;
+  });
+
+  const [visitCount] = useState<number>(() => {
+    const vc = parseInt(localStorage.getItem("analytics_visit_count") || "0", 10) + 1;
+    localStorage.setItem("analytics_visit_count", vc.toString());
+    return vc;
+  });
+
+  const [isChangingUsername, setIsChangingUsername] = useState(false);
+  const [newUsernameInput, setNewUsernameInput] = useState(analyticsUsername);
+
+  const syncUserProfile = async (uid: string, name: string, vc: number) => {
+    try {
+      await fetch("/api/users/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: uid,
+          username: name,
+          visitCount: vc,
+          deviceInfo: navigator.userAgent
+        })
+      });
+    } catch (err) {
+      console.warn("Could not sync visitor profile", err);
+    }
+  };
+
   // Layout navigation states
   const [activeBrowserUrl, setActiveBrowserUrl] = useState<string | null>(null);
   const [activeBrowserTitle, setActiveBrowserTitle] = useState<string>("");
@@ -229,6 +275,11 @@ export default function App() {
       verifyAdFreeLicense(cachedKey);
     }
   }, []);
+
+  // Sync visitor profile analytics
+  useEffect(() => {
+    syncUserProfile(analyticsUserId, analyticsUsername, visitCount);
+  }, [analyticsUserId, analyticsUsername, visitCount]);
 
   // Fetch configs from express DB server with silent failovers
   useEffect(() => {
@@ -780,6 +831,67 @@ export default function App() {
                 <p className="text-xs text-slate-400 max-w-sm mx-auto leading-relaxed">
                   {config.adDescription || "নিচের ওয়াচ বাটনসমূহে ক্লিক করলেই স্পন্সর বিজ্ঞাপনটি শুরু হবে। ৫ সেকেন্ড বিজ্ঞাপন দেখে ওয়েবসাইট উপভোগ করুন।"}
                 </p>
+              </div>
+
+              {/* User Profile Card */}
+              <div className="bg-slate-900/40 border border-slate-900 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-left">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
+                    <User className="w-4 h-4 text-emerald-400" />
+                  </div>
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-slate-500 font-mono font-bold uppercase">ইউজার অ্যাকাউন্ট</span>
+                      <span className="text-[9px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-400 font-mono">ID: {analyticsUserId}</span>
+                    </div>
+                    {isChangingUsername ? (
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <input
+                          type="text"
+                          className="bg-slate-950 border border-slate-800 focus:border-cyan-500 text-xs px-2 py-1 rounded-lg text-white font-sans outline-none w-36"
+                          value={newUsernameInput}
+                          onChange={(e) => setNewUsernameInput(e.target.value)}
+                          placeholder="নতুন ইউজারনেম"
+                        />
+                        <button
+                          onClick={() => {
+                            if (newUsernameInput.trim()) {
+                              setAnalyticsUsername(newUsernameInput.trim());
+                              localStorage.setItem("analytics_username", newUsernameInput.trim());
+                              setIsChangingUsername(false);
+                            }
+                          }}
+                          className="px-2.5 py-1 bg-cyan-400 hover:bg-cyan-300 text-slate-950 font-bold text-[10px] rounded-lg cursor-pointer"
+                        >
+                          সেভ
+                        </button>
+                        <button
+                          onClick={() => {
+                            setNewUsernameInput(analyticsUsername);
+                            setIsChangingUsername(false);
+                          }}
+                          className="px-2 py-1 bg-slate-800 text-slate-400 hover:text-white text-[10px] rounded-lg cursor-pointer"
+                        >
+                          বাতিল
+                        </button>
+                      </div>
+                    ) : (
+                      <p className="text-xs font-bold text-slate-200">
+                        {analyticsUsername}{" "}
+                        <button
+                          onClick={() => setIsChangingUsername(true)}
+                          className="text-[10px] text-cyan-400 hover:underline ml-2 cursor-pointer font-medium"
+                        >
+                          (নাম পরিবর্তন করুন)
+                        </button>
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="text-right shrink-0">
+                  <span className="text-[10px] text-slate-500 font-mono font-bold block">আপনার ভিজিট</span>
+                  <span className="text-xs text-cyan-400 font-bold font-mono">{visitCount} বার প্রবেশ করেছেন</span>
+                </div>
               </div>
 
               {/* MAIN DYNAMIC BUTTON GRID */}

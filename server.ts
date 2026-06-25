@@ -29,6 +29,7 @@ app.get("/api/config", (req, res) => {
     delete (sanitized as any).adminCodeSecondary;
     delete (sanitized as any).securityAnswer;
     delete (sanitized as any).feedbacks; // Feedbacks may contain user private billing metadata
+    delete (sanitized as any).users; // Hide user list from public clients
     
     // Fallback/Default values for customization options
     if (!sanitized.appName) sanitized.appName = "ALL LIVE";
@@ -105,6 +106,7 @@ app.post("/api/admin/verify-pin", (req, res) => {
     if (!rawConfig.adDescription) rawConfig.adDescription = "নিচের ওয়াচ বাটনসমূহে ক্লিক করলেই স্পন্সর বিজ্ঞাপনটি শুরু হবে। ৫ সেকেন্ড বিজ্ঞাপন দেখে ওয়েবসাইট উপভোগ করুন।";
     if (!rawConfig.backButtonText) rawConfig.backButtonText = "হোমপেজে ফিরুন (Ad সহ)";
     if (rawConfig.backButtonAdTrigger === undefined) rawConfig.backButtonAdTrigger = true;
+    if (!rawConfig.users) rawConfig.users = [];
     res.json({ success: true, config: rawConfig });
   } else {
     res.status(401).json({ success: false, error: auth.error });
@@ -198,6 +200,87 @@ app.post("/api/feedback/submit", (req, res) => {
 
     fs.writeFileSync(dataPath, JSON.stringify(config, null, 2), "utf8");
     res.json({ success: true, feedback: newFeedback });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// API route: Public user session sync / automatic registration (User Analytics)
+app.post("/api/users/sync", (req, res) => {
+  try {
+    const dataPath = path.join(__dirname, "data-store.json");
+    if (!fs.existsSync(dataPath)) {
+      return res.status(404).json({ error: "Database file missing" });
+    }
+    const rawData = fs.readFileSync(dataPath, "utf8");
+    const config = JSON.parse(rawData);
+
+    const { id, username, createdAt, deviceInfo, visitCount } = req.body;
+    if (!id || !username) {
+      return res.status(400).json({ error: "id and username are required" });
+    }
+
+    if (!config.users) {
+      config.users = [];
+    }
+
+    const existingIndex = config.users.findIndex((u: any) => u.id === id);
+    const nowStr = new Date().toISOString();
+
+    if (existingIndex !== -1) {
+      config.users[existingIndex] = {
+        ...config.users[existingIndex],
+        username: username.toString().trim(),
+        lastActive: nowStr,
+        visitCount: typeof visitCount === "number" ? visitCount : (config.users[existingIndex].visitCount || 1) + 1,
+        deviceInfo: deviceInfo || config.users[existingIndex].deviceInfo || "Unknown"
+      };
+    } else {
+      config.users.unshift({
+        id,
+        username: username.toString().trim(),
+        createdAt: createdAt || nowStr,
+        lastActive: nowStr,
+        deviceInfo: deviceInfo || "Unknown Browser",
+        visitCount: visitCount || 1
+      });
+    }
+
+    // Keep it trimmed to top 200 users to prevent data-store from growing too large
+    if (config.users.length > 200) {
+      config.users = config.users.slice(0, 200);
+    }
+
+    fs.writeFileSync(dataPath, JSON.stringify(config, null, 2), "utf8");
+    res.json({ success: true, user: config.users.find((u: any) => u.id === id) });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// API route: Admin-only delete user from analytics list
+app.post("/api/admin/users/delete", (req, res) => {
+  try {
+    const auth = checkAdminAuth(req);
+    if (!auth.success) {
+      return res.status(401).json({ error: auth.error });
+    }
+
+    const { userId } = req.body;
+    if (!userId) {
+      return res.status(400).json({ error: "User ID is required" });
+    }
+
+    const dataPath = path.join(__dirname, "data-store.json");
+    const rawData = fs.readFileSync(dataPath, "utf8");
+    const config = JSON.parse(rawData);
+
+    if (config.users) {
+      config.users = config.users.filter((u: any) => u.id !== userId);
+    }
+
+    fs.writeFileSync(dataPath, JSON.stringify(config, null, 2), "utf8");
+    res.json({ success: true, message: "User deleted successfully" });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

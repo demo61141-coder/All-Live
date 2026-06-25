@@ -5,6 +5,7 @@ export interface AppButton {
   link: string; // target website URL to load
   network: "startapp" | "monetag" | "both";
   status: "active" | "inactive";
+  adsEnabled?: boolean; // toggle ads for this button specifically (defaults to true)
 }
 
 export interface AdConfig {
@@ -60,6 +61,15 @@ export interface DevDetails {
   avatarInitials: string;
 }
 
+export interface UserProfile {
+  id: string;
+  username: string;
+  createdAt: string;
+  lastActive: string;
+  deviceInfo?: string;
+  visitCount: number;
+}
+
 export interface AppConfig {
   buttons: AppButton[];
   adConfig: AdConfig;
@@ -82,4 +92,5 @@ export interface AppConfig {
   adDescription?: string; // Custom main card sub-desc (defaults to "নিচের ওয়াচ বাটনসমূহে ক্লিক করলেই স্পন্সর বিজ্ঞাপনটি শুরু হবে। ৫ সেকেন্ড বিজ্ঞাপন দেখে ওয়েবসাইট উপভোগ করুন।")
   backButtonText?: string; // Custom button text inside browser view ("হোমপেজে ফিরুন (Ad সহ)")
   backButtonAdTrigger?: boolean; // Control if returning triggers an ad
+  users?: UserProfile[]; // Database of registered user sessions (analytics)
 }
